@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+:root {
+  /* NZ Theme */
+  --color-primary-red-ochre: #a94332;
+  --color-primary-silver: #c0c0c0;
+
+  --md-sys-color-primary: var(--color-primary-red-ochre);
+  --md-sys-color-on-primary: #ffffff;
+
+  --md-sys-color-background: #080808;
+  --md-sys-color-on-background: #e0e0e0;
+
+  --md-sys-color-surface: rgba(20, 20, 20, 0.7);
+  --md-sys-color-on-surface: #f0f0f5;
+  --md-sys-color-surface-variant: rgba(30, 30, 30, 0.7);
+  --md-sys-color-on-surface-variant: #c8c8d0;
+
+  --md-sys-color-outline: rgba(192, 192, 192, 0.3);
+  --md-sys-color-shadow: #000000;
+
+  /* Custom properties for the new design */
+  --glow-shadow-primary:
+    0 0 5px var(--md-sys-color-primary), 0 0 10px var(--md-sys-color-primary);
+  --glass-backdrop-blur: 16px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 24px;
+  --transition-speed: 300ms;
+}
+
+@layer base {
+  body {
+    @apply antialiased;
+    background-color: var(--md-sys-color-background);
+    color: var(--md-sys-color-on-background);
+    overflow: hidden;
+  }
+  ::selection {
+    background-color: #bfdbfe; /* blue-200 */
+    color: #1e3a8a; /* blue-900 */
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 20;
+  font-size: 1.25em;
+  vertical-align: sub;
+  line-height: 1;
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 300ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--md-sys-color-outline);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--md-sys-color-primary);
+}

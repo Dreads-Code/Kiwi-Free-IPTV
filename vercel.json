@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "functions": {
+    "api/**/*.rs": {
+      "runtime": "@vercel/rust@1.0.5",
+      "maxDuration": 30,
+      "regions": ["syd1"]
+    }
+  },
+  "outputDirectory": "react-app/dist",
+  "rewrites": [
+    {
+      "source": "/manifest.json",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/logo.png",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/background.png",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/api/data",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/ping",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/api/image/:path*",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/proxy/:path*",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/catalog/:path*",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/meta/:path*",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/stream/:path*",
+      "destination": "/api/axum"
+    },
+    {
+      "source": "/((?!api/|static/|favicon.ico|logo.png|background.png|manifest.json|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

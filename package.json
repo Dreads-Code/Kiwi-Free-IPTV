@@ -1,0 +1,12 @@
+{
+  "name": "iptv-nz-stremio-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm install --prefix react-app && npm run build --prefix react-app",
+    "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"cargo run --bin local\" \"npm run dev --prefix react-app\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

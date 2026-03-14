@@ -1,0 +1,575 @@
+//! IPTV Data Management and Stremio Resource Handlers.
+//! This module handles fetching, parsing, and caching of M3U8 and EPG data,
+//! as well as formatting it for the Stremio Addon API.
+
+use crate::AppState;
+use crate::tvmaze::{self, process_epg_icon_url};
+use log::{error, info, warn};
+use quick_xml::de::from_str;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Hardcoded source URL for the M3U8 playlist.
+pub const M3U8_URL: &str = "https://i.mjh.nz/nz/raw-tv.m3u8";
+/// Hardcoded source URL for the EPG XML data.
+pub const EPG_URL: &str = "https://i.mjh.nz/nz/epg.xml";
+
+/// Internal representation of the EPG XML structure.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Tv {
+    #[serde(rename = "channel", default)]
+    channels: Vec<EpgChannel>,
+    #[serde(rename = "programme", default)]
+    programmes: Vec<EpgProgramme>,
+}
+
+/// A channel entry within the EPG.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct EpgChannel {
+    #[serde(rename = "@id")]
+    id: String,
+    #[allow(dead_code)]
+    #[serde(rename = "display-name")]
+    display_names: Vec<String>,
+    icon: Option<EpgIcon>,
+}
+
+/// Icon metadata from the EPG.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct EpgIcon {
+    #[serde(alias = "@src")]
+    pub src: String,
+}
+
+/// Age rating or star rating metadata from the EPG.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct EpgRating {
+    pub value: Option<String>,
+}
+
+/// A single program entry in the EPG schedule.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct EpgProgramme {
+    #[serde(alias = "@start")]
+    pub start: String,
+    #[serde(alias = "@stop")]
+    pub stop: String,
+    #[serde(alias = "@channel")]
+    pub channel: String,
+    pub title: Option<String>,
+    pub desc: Option<String>,
+    pub icon: Option<EpgIcon>,
+    #[serde(default)]
+    pub category: Vec<String>,
+    pub date: Option<String>,
+    pub rating: Option<EpgRating>,
+    #[serde(alias = "star-rating")]
+    pub star_rating: Option<EpgRating>,
+}
+
+/// Unified metadata structure for a channel and its current programming.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChannelMeta {
+    pub id: String,
+    pub name: String,
+    pub name_lower: String,
+    pub type_name: String,
+    pub poster: Option<String>,
+    pub poster_shape: String,
+    pub background: Option<String>,
+    pub logo: Option<String>,
+    pub description: String,
+    pub url: String,
+    pub category: String,
+    #[serde(default)]
+    pub programmes: Vec<EpgProgramme>,
+    #[serde(default)]
+    pub http_headers: Option<HashMap<String, String>>,
+}
+
+/// Makes an HTTP GET request with a retry mechanism.
+/// Retries for both network errors and non-success HTTP status codes.
+pub async fn make_request(url: &str, retries: u32) -> Result<String, reqwest::Error> {
+    let client = Client::new();
+    let mut attempt = 0;
+    loop {
+        match client
+            .get(url)
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+        {
+            Ok(res) => return Ok(res.text().await?),
+            Err(e) => {
+                if attempt >= retries {
+                    return Err(e);
+                }
+                warn!(
+                    "Attempt {} failed for {}: {}. Retrying...",
+                    attempt + 1,
+                    url,
+                    e
+                );
+                attempt += 1;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+/// Categorizes a channel based on its name and potential headers.
+pub fn categorize_channel(name: &str, _headers: &Option<HashMap<String, String>>) -> String {
+    let name_lower = name.to_lowercase();
+
+    let sports_keywords = [
+        "sport",
+        "trackside",
+        "redbull",
+        "sailgp",
+        "motogp",
+        "sky open",
+    ];
+    if sports_keywords.iter().any(|k| name_lower.contains(k)) {
+        return "Sports".to_string();
+    }
+
+    let news_keywords = ["news", "al jazeera", "cnn", "dw english", "parliament tv"];
+    if news_keywords.iter().any(|k| name_lower.contains(k)) {
+        return "News".to_string();
+    }
+
+    let religious_keywords = ["shine", "hope channel", "firstlight"];
+    if religious_keywords.iter().any(|k| name_lower.contains(k)) {
+        return "Religious".to_string();
+    }
+
+    let nz_networks = ["tvnz", "discovery", "māori"];
+    if nz_networks.iter().any(|k| name_lower.contains(k)) {
+        return "New Zealand".to_string();
+    }
+
+    let nz_channel_names = [
+        "whakaata māori",
+        "te reo",
+        "three",
+        "eden",
+        "duke",
+        "rush",
+        "bravo",
+        "wairarapa tv",
+    ];
+    if nz_channel_names.iter().any(|k| name_lower.starts_with(k)) {
+        return "New Zealand".to_string();
+    }
+
+    "International".to_string()
+}
+
+/// Fetches and processes M3U8 and EPG data into a collection of `ChannelMeta`.
+/// Uses heavy caching to minimize external requests.
+pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn std::error::Error>> {
+    // Check if fully processed data is already cached
+    if let Some(data) = state
+        .stream_cache
+        .get("data")
+        .await
+        .and_then(|cached| serde_json::from_str::<Vec<ChannelMeta>>(&cached).ok())
+    {
+        return Ok(data);
+    }
+
+    // Fetch or use cached M3U8
+    let m3u8_text = if let Some(cached) = state.stream_cache.get("m3u8").await {
+        cached
+    } else {
+        info!("Refreshing M3U8 data...");
+        let text = make_request(&state.m3u8_url, 3).await?;
+        state
+            .stream_cache
+            .insert("m3u8".to_string(), text.clone())
+            .await;
+        text
+    };
+
+    // Fetch or use cached EPG
+    let epg: Tv = if let Some(cached) = state.epg_cache.get("epg_struct").await {
+        serde_json::from_str(&cached)?
+    } else {
+        info!("Refreshing EPG data...");
+        let epg_text = make_request(&state.epg_url, 3).await?;
+        let parsed_epg: Tv = match from_str(&epg_text) {
+            Ok(epg) => epg,
+            Err(e) => {
+                error!("Failed to parse EPG XML: {}", e);
+                Tv {
+                    channels: vec![],
+                    programmes: vec![],
+                }
+            }
+        };
+        if let Ok(json) = serde_json::to_string(&parsed_epg) {
+            state.epg_cache.insert("epg_struct".to_string(), json).await;
+        }
+        parsed_epg
+    };
+
+    let mut epg_map = HashMap::new();
+    for c in epg.channels {
+        epg_map.insert(c.id.clone(), c);
+    }
+
+    let mut programmes_map: HashMap<String, Vec<EpgProgramme>> = HashMap::new();
+    for p in epg.programmes {
+        programmes_map.entry(p.channel.clone()).or_default().push(p);
+    }
+
+    let mut channels = Vec::new();
+
+    let mut current_tvg_id = None;
+    let mut current_tvg_logo = None;
+    let mut current_name = None;
+    let mut current_headers: HashMap<String, String> = HashMap::new();
+
+    // Parse the M3U8 playlist manually to extract custom attributes
+    for line in m3u8_text.lines() {
+        let line = line.trim();
+        if line.starts_with("#EXTINF:") {
+            if let Some(idx) = line.find("tvg-id=\"") {
+                let end = line[idx + 8..].find("\"").unwrap_or(0);
+                let tvg_id = &line[idx + 8..idx + 8 + end];
+                current_tvg_id = if tvg_id.is_empty() {
+                    None
+                } else {
+                    Some(tvg_id.to_string())
+                };
+            }
+
+            if let Some(idx) = line.find("tvg-logo=\"") {
+                let end = line[idx + 10..].find("\"").unwrap_or(0);
+                let tvg_logo = &line[idx + 10..idx + 10 + end];
+                current_tvg_logo = if tvg_logo.is_empty() {
+                    None
+                } else {
+                    Some(tvg_logo.to_string())
+                };
+            }
+
+            if let Some(last_comma) = line.rfind(',') {
+                current_name = Some(line[last_comma + 1..].trim().to_string());
+            }
+        } else if let Some(stripped) = line.strip_prefix("#EXTVLCOPT:http-user-agent=") {
+            let val = stripped.trim();
+            if !val.is_empty() {
+                current_headers.insert("User-Agent".to_string(), val.to_string());
+            }
+        } else if let Some(stripped) = line.strip_prefix("#EXTVLCOPT:http-referrer=") {
+            let val = stripped.trim();
+            if !val.is_empty() {
+                current_headers.insert("Referer".to_string(), val.to_string());
+            }
+        } else if !line.starts_with('#') && !line.is_empty() {
+            if let Some(name) = current_name.take() {
+                let tvg_id = current_tvg_id.take().unwrap_or_default();
+                let tvg_logo = current_tvg_logo.take();
+
+                let channel_id = if tvg_id.is_empty() {
+                    format!("mjh-{}", name.replace(" ", "-").to_lowercase())
+                } else if tvg_id.starts_with("mjh-") {
+                    tvg_id.clone()
+                } else {
+                    format!("mjh-{}", tvg_id)
+                };
+
+                let epg_data = epg_map.get(&tvg_id);
+                let channel_programmes = programmes_map.get(&tvg_id).cloned().unwrap_or_default();
+
+                let icon = tvg_logo
+                    .or_else(|| epg_data.and_then(|e| e.icon.as_ref().map(|i| i.src.clone())));
+
+                let headers = if current_headers.is_empty() {
+                    None
+                } else {
+                    Some(current_headers.clone())
+                };
+                current_headers.clear();
+
+                channels.push(ChannelMeta {
+                    id: format!("stremio_iptv_id:{}", channel_id),
+                    name: name.clone(),
+                    name_lower: name.to_lowercase(),
+                    type_name: "tv".to_string(),
+                    poster: icon.clone(),
+                    poster_shape: "regular".to_string(),
+                    background: icon.clone(),
+                    logo: icon.clone(),
+                    description: format!("Watch {}", name),
+                    url: line.to_string(),
+                    category: categorize_channel(&name, &headers),
+                    programmes: channel_programmes,
+                    http_headers: headers,
+                });
+            }
+        }
+    }
+
+    // Sort channels with specific weights for common NZ networks
+    channels.sort_by_key(|c| {
+        let name = c.name.to_lowercase();
+        let id = c.id.as_str();
+
+        let weight = if name.contains("+1") || name.contains("plus 1") || id.ends_with("plus1") {
+            1000
+        } else {
+            match id {
+                "stremio_iptv_id:mjh-tvnz-1" => 1,
+                "stremio_iptv_id:mjh-tvnz-2" => 2,
+                "stremio_iptv_id:mjh-three" => 3,
+                "stremio_iptv_id:mjh-bravo" => 4,
+                "stremio_iptv_id:mjh-maori-tv" => 5,
+                "stremio_iptv_id:mjh-tvnz-duke" => 6,
+                "stremio_iptv_id:mjh-sky-open" | "stremio_iptv_id:mjh-prime" => 7,
+                "stremio_iptv_id:mjh-eden" => 8,
+                "stremio_iptv_id:mjh-sky-hgtv" => 9,
+                _ => 100,
+            }
+        };
+
+        (weight, name)
+    });
+
+    if let Ok(json_str) = serde_json::to_string(&channels) {
+        state
+            .stream_cache
+            .insert("data".to_string(), json_str)
+            .await;
+        info!("Cached {} processed channels.", channels.len());
+    }
+
+    Ok(channels)
+}
+
+/// Formats a channel's metadata for a Stremio response, including EPG data.
+/// Enriches metadata with artwork from TVMaze if applicable.
+pub async fn format_meta(
+    state: AppState,
+    channel: ChannelMeta,
+    now_str: String,
+    is_catalog: bool,
+) -> serde_json::Value {
+    let mut current_program = None;
+    for p in &channel.programmes {
+        if p.start.as_str() <= now_str.as_str() && p.stop.as_str() > now_str.as_str() {
+            current_program = Some(p);
+            break;
+        }
+    }
+
+    let mut meta_obj = serde_json::json!({
+        "id": channel.id,
+        "name": channel.name,
+        "type": channel.type_name,
+        "poster": channel.poster,
+        "posterShape": channel.poster_shape,
+        "background": channel.background,
+        "logo": channel.logo,
+        "description": channel.description,
+    });
+
+    if !is_catalog {
+        meta_obj["behaviorHints"] = serde_json::json!({ "defaultVideoId": channel.id });
+    }
+
+    if let Some(cp) = current_program {
+        if let Some(t) = &cp.title {
+            meta_obj["name"] = serde_json::json!(t);
+        }
+
+        let mut desc = cp.desc.clone().unwrap_or_default();
+
+        if let Some(date) = &cp.date {
+            meta_obj["releaseInfo"] = serde_json::json!(date);
+        }
+
+        if let Some(sr) = &cp.star_rating
+            && let Some(val) = &sr.value
+            && let Some(num) = val.split('/').next()
+        {
+            meta_obj["imdbRating"] = serde_json::json!(num);
+        }
+
+        if let (Ok(st), Ok(end)) = (
+            chrono::DateTime::parse_from_str(&cp.start, "%Y%m%d%H%M%S %z"),
+            chrono::DateTime::parse_from_str(&cp.stop, "%Y%m%d%H%M%S %z"),
+        ) {
+            let mins = (end - st).num_minutes();
+            if mins > 0 {
+                meta_obj["runtime"] = serde_json::json!(format!("{} min", mins));
+            }
+        }
+
+        if let Some(r) = &cp.rating
+            && let Some(val) = &r.value
+        {
+            desc = format!("Age Rating: {} | {}", val, desc);
+        }
+
+        meta_obj["description"] = serde_json::json!(format!("{}\n\nWatch {}", desc, channel.name));
+
+        let mut poster = None;
+        let mut banner = None;
+
+        // Try to obtain artwork from EPG, fall back to TVMaze
+        if let Some(icon) = &cp.icon {
+            if let Some(valid_url) = process_epg_icon_url(&icon.src) {
+                poster = Some(valid_url);
+            }
+        }
+
+        if poster.is_none() {
+            if let Some(title) = &cp.title {
+                let cache_key = title.clone();
+                if let Some(cached) = state.image_cache.get(&cache_key).await {
+                    poster = cached.poster;
+                    banner = cached.banner;
+                } else {
+                    if let Some(enriched) = state.tvmaze_client.fetch_show_images(title).await {
+                        poster = enriched.poster.clone();
+                        banner = enriched.banner.clone();
+                        state.image_cache.insert(cache_key, enriched).await;
+                    } else {
+                        state
+                            .image_cache
+                            .insert(
+                                cache_key,
+                                tvmaze::ShowImages {
+                                    poster: None,
+                                    banner: None,
+                                },
+                            )
+                            .await;
+                    }
+                }
+            }
+        }
+
+        if let Some(p) = poster {
+            meta_obj["poster"] = serde_json::json!(p);
+            meta_obj["background"] = serde_json::json!(banner.unwrap_or(p));
+        }
+
+        let mut genres = Vec::new();
+        for cat in &cp.category {
+            genres.push(cat.clone());
+        }
+        if !genres.is_empty() {
+            meta_obj["genres"] = serde_json::json!(genres);
+        }
+    }
+
+    meta_obj
+}
+
+/// Generates the catalog response for Stremio.
+pub async fn catalog(state: &AppState) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let channels = fetch_data(state).await?;
+    let mut futures = Vec::new();
+
+    let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
+
+    for c in channels {
+        futures.push(format_meta(state.clone(), c, now_str.clone(), true));
+    }
+
+    let res = futures::future::join_all(futures).await;
+    Ok(serde_json::Value::Array(res))
+}
+
+/// Generates a single meta detail response for Stremio.
+pub async fn meta(
+    state: &AppState,
+    id: &str,
+) -> Result<Option<serde_json::Value>, Box<dyn std::error::Error>> {
+    let channels = fetch_data(state).await?;
+    let channel = match channels.iter().find(|c| c.id == id) {
+        Some(c) => c,
+        None => return Ok(None),
+    };
+
+    let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
+
+    Ok(Some(
+        format_meta(state.clone(), channel.clone(), now_str, false).await,
+    ))
+}
+
+/// Generates the stream response for Stremio, applying MJH pre-resolution.
+pub async fn stream(
+    state: &AppState,
+    id: &str,
+    base_url: &str,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let channels = fetch_data(state).await?;
+    let channel = match channels.iter().find(|c| c.id == id) {
+        Some(c) => c,
+        None => return Ok(serde_json::json!([])),
+    };
+
+    let mut stream_url = channel.url.clone();
+
+    // Pre-resolve MJH redirects to provide the final stream URL to Stremio
+    if let Ok(res) = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?
+        .get(&channel.url)
+        .header("User-Agent", crate::proxy::BROWSER_UA)
+        .send()
+        .await
+    {
+        if res.status().is_redirection() {
+            if let Some(loc) = res.headers().get("location")
+                && let Ok(loc_str) = loc.to_str()
+            {
+                stream_url = loc_str.to_string();
+                info!(
+                    "Pre-resolved MJH endpoint for {}: {}",
+                    channel.name, stream_url
+                );
+            }
+        } else if res.status().is_success() {
+            stream_url = res.url().to_string();
+        }
+    }
+
+    let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
+
+    let mut show_title = "Live TV".to_string();
+    for p in &channel.programmes {
+        if p.start <= now_str && p.stop > now_str {
+            if let Some(t) = &p.title {
+                show_title = t.to_string();
+            }
+            break;
+        }
+    }
+
+    if show_title == "Live TV"
+        && let Some(p) = channel.programmes.first()
+        && let Some(t) = &p.title
+    {
+        show_title = format!("Next: {}", t);
+    }
+
+    let proxy_url =
+        crate::proxy::build_proxy_url(base_url, &stream_url, channel.http_headers.as_ref());
+
+    Ok(serde_json::json!([{
+        "name": channel.name,
+        "title": show_title,
+        "url": proxy_url,
+        "behaviorHints": {
+            "isHLS": true,
+            "notWebReady": false
+        }
+    }]))
+}
