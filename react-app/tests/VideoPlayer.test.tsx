@@ -9,7 +9,10 @@ const mockHlsInstance = {
 
 class MockHls {
   static readonly isSupported = vi.fn(() => true);
-  static readonly Events = { MANIFEST_PARSED: "manifestParsed", ERROR: "error" } as const;
+  static readonly Events = {
+    MANIFEST_PARSED: "manifestParsed",
+    ERROR: "error",
+  } as const;
   static readonly ErrorTypes = {
     NETWORK_ERROR: "networkError",
     MEDIA_ERROR: "mediaError",

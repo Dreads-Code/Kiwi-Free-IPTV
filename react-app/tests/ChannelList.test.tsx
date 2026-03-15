@@ -5,13 +5,7 @@ import { Channel, EpgData } from "../src/types";
 
 // Mock the dependencies
 vi.mock("../src/components/ChannelCard", () => ({
-  default: ({
-    channel,
-    isActive,
-  }: {
-    channel: Channel;
-    isActive: boolean;
-  }) => (
+  default: ({ channel, isActive }: { channel: Channel; isActive: boolean }) => (
     <div
       data-testid="channel-card"
       data-channel-id={channel.id}

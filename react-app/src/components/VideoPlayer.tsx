@@ -5,10 +5,12 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import { X } from "lucide-react";
 
 import { Channel, EpgData, Programme } from "../types";
 import { useProgramImage } from "../hooks/useShowImage";
 import CustomVideoControls from "./CustomVideoControls";
+import { findCurrentProgrammeIndex } from "../utils/programmeUtils";
 import {
   applyProxyRules,
   isProxiedUrl,
@@ -82,14 +84,6 @@ interface WebKitPlaybackTargetAvailabilityEvent extends Event {
   availability: "available" | "not-available";
 }
 
-const findCurrentProgrammeIndex = (
-  programmes: Programme[] | undefined,
-): number => {
-  if (!programmes || programmes.length === 0) return -1;
-  const now = new Date();
-  return programmes.findIndex((p) => now >= p.start && now < p.stop);
-};
-
 const NextUpCard = ({
   programme,
   channel,
@@ -100,7 +94,7 @@ const NextUpCard = ({
   const { posterUrl } = useProgramImage(programme, channel);
   if (!posterUrl) return null;
   return (
-    <div className="animate-slide-in-up flex w-64 items-center overflow-hidden rounded-lg border border-white/10 bg-slate-900/80 p-3 shadow-2xl backdrop-blur-md">
+    <div className="animate-slide-in-up flex w-64 items-center overflow-hidden rounded-lg border border-white/20 bg-black/40 p-3 shadow-2xl backdrop-blur-xl">
       <img
         src={posterUrl}
         alt={programme.title}
@@ -558,61 +552,57 @@ const VideoPlayer = ({
       video.load();
     };
   }, [streamUrl, resolvedUrl, xhrSetup, handleManifestParsed, handleHlsError]);
+  // Sync isPlaying with a ref for the auto-hide timer check
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   const showControls = useCallback(() => {
     setIsControlsVisible(true);
-    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (controlsTimeoutRef.current) {
+      globalThis.clearTimeout(controlsTimeoutRef.current);
+    }
     controlsTimeoutRef.current = globalThis.setTimeout(() => {
-      if (isPlaying) setIsControlsVisible(false);
+      if (isPlayingRef.current) {
+        setIsControlsVisible(false);
+      }
     }, 3000) as unknown as number;
-  }, [isPlaying]);
+  }, []);
 
-  // Player event listeners
+  // Ensure isPlaying is correctly detected when mounting or the video starts
   useEffect(() => {
     const video = videoRef.current;
-    const container = playerContainerRef.current;
-    if (!video || !container) return;
+    if (!video) return;
 
-    const updatePlayState = () => {
-      setIsPlaying(!video.paused);
+    const handleActualPlay = () => {
+      setIsPlaying(true);
+      showControls();
     };
-    const updateTime = () => {
-      setCurrentTime(video.currentTime);
-    };
-    const updateDuration = () => {
-      setDuration(video.duration);
-    };
-    const handleWaiting = () => {
-      setIsBuffering(true);
-    };
-    const handlePlaying = () => {
-      setIsBuffering(false);
+    const handleActualPause = () => {
+      setIsPlaying(false);
+      setIsControlsVisible(true);
+      if (controlsTimeoutRef.current) {
+        globalThis.clearTimeout(controlsTimeoutRef.current);
+      }
     };
 
-    video.setAttribute("x-webkit-airplay", "allow");
+    video.addEventListener("play", handleActualPlay);
+    video.addEventListener("pause", handleActualPause);
+    video.addEventListener("playing", handleActualPlay);
 
-    video.addEventListener("play", updatePlayState);
-    video.addEventListener("pause", updatePlayState);
-    video.addEventListener("timeupdate", updateTime);
-    video.addEventListener("durationchange", updateDuration);
-    video.addEventListener("waiting", handleWaiting);
-    video.addEventListener("playing", handlePlaying);
-
-    container.addEventListener("mousemove", showControls);
-    container.addEventListener("click", showControls);
-    container.addEventListener("touchstart", showControls, { passive: true });
+    // Initial check
+    if (!video.paused) {
+      handleActualPlay();
+    }
 
     return () => {
-      video.removeEventListener("play", updatePlayState);
-      video.removeEventListener("pause", updatePlayState);
-      video.removeEventListener("timeupdate", updateTime);
-      video.removeEventListener("durationchange", updateDuration);
-      video.removeEventListener("waiting", handleWaiting);
-      video.removeEventListener("playing", handlePlaying);
-      container.removeEventListener("mousemove", showControls);
-      container.removeEventListener("click", showControls);
-      container.removeEventListener("touchstart", showControls);
-      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      video.removeEventListener("play", handleActualPlay);
+      video.removeEventListener("pause", handleActualPause);
+      video.removeEventListener("playing", handleActualPlay);
+      if (controlsTimeoutRef.current) {
+        globalThis.clearTimeout(controlsTimeoutRef.current);
+      }
     };
   }, [showControls]);
 
@@ -791,30 +781,6 @@ const VideoPlayer = ({
     };
   }, [currentProgramme]);
 
-  const handlePlayPause = useCallback(() => {
-    if (videoRef.current?.paused) {
-      videoRef.current.play();
-    } else {
-      videoRef.current?.pause();
-    }
-  }, []);
-
-  const handleMuteToggle = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-    }
-    setIsMuted((m) => !m);
-  };
-
-  const handleVolumeChange = (newVolume: number) => {
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      videoRef.current.muted = newVolume === 0;
-    }
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-  };
-
   const handleSeek = (time: number) => {
     if (videoRef.current) videoRef.current.currentTime = time;
   };
@@ -856,6 +822,34 @@ const VideoPlayer = ({
     }
   };
 
+  const handlePlayPause = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch((err: Error) => {
+        if (err.name !== "AbortError") console.error("Play failed:", err);
+      });
+    } else {
+      video.pause();
+    }
+  }, []);
+
+  const handleMuteToggle = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+    }
+    setIsMuted((m) => !m);
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    if (videoRef.current) {
+      videoRef.current.volume = newVolume;
+      videoRef.current.muted = newVolume === 0;
+    }
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+  };
+
   const handlePipToggle = useCallback(async () => {
     if (!videoRef.current) return;
 
@@ -890,16 +884,47 @@ const VideoPlayer = ({
       className="animate-fade-in group fixed inset-0 z-50 bg-black"
       role="dialog"
       aria-modal="true"
+      onMouseMove={showControls}
+      onTouchStart={showControls}
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-contain"
+        className="pointer-events-none h-full w-full object-contain"
         autoPlay
         playsInline
         muted={isMuted}
+        onPlay={() => {
+          setIsPlaying(true);
+          showControls();
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          setIsControlsVisible(true);
+          if (controlsTimeoutRef.current) {
+            globalThis.clearTimeout(controlsTimeoutRef.current);
+          }
+        }}
+        onPlaying={() => {
+          setIsPlaying(true);
+          setIsBuffering(false);
+          showControls();
+        }}
+        onWaiting={() => setIsBuffering(true)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onDurationChange={(e) => setDuration(e.currentTarget.duration)}
       >
         <track kind="captions" />
       </video>
+
+      {/* Interaction Overlay - captures play/pause clicks and resets auto-hide timer */}
+      <div
+        className="absolute inset-0 z-10 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          handlePlayPause();
+          showControls();
+        }}
+      />
 
       {isBuffering && isPlaying && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
@@ -940,13 +965,13 @@ const VideoPlayer = ({
 
       <button
         onClick={(e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent toggling controls when clicking close
+          e.stopPropagation();
           onClose();
         }}
-        className={`absolute top-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-3xl font-bold text-white/80 backdrop-blur-sm transition-opacity hover:bg-black/80 hover:text-white ${isControlsVisible ? "scale-100 opacity-100" : "pointer-events-none scale-90 opacity-0"}`}
+        className={`absolute top-4 right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur-sm transition-all hover:scale-105 hover:bg-black/80 hover:text-white ${isControlsVisible ? "scale-100 opacity-100" : "pointer-events-none scale-90 opacity-0"}`}
         aria-label="Close player"
       >
-        &times;
+        <X size={24} />
       </button>
 
       {toast && (
@@ -960,9 +985,9 @@ const VideoPlayer = ({
             </p>
             <button
               onClick={() => setToast(null)}
-              className="ml-2 text-white/40 hover:text-white"
+              className="ml-2 flex h-6 w-6 items-center justify-center rounded-full text-white/40 hover:bg-white/10 hover:text-white"
             >
-              &times;
+              <X size={16} />
             </button>
           </div>
         </div>

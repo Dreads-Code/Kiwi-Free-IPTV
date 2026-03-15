@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from "react";
 import { Channel, EpgData, Programme } from "../types";
+import { findFirstVisibleProgrammeIndex } from "../utils/programmeUtils";
 import ProgressBar from "./ProgressBar";
 import { useProgramImage } from "../hooks/useShowImage";
 import RatingBadge from "./RatingBadge";
@@ -59,16 +60,28 @@ const findNextProgrammes = (
 ): Programme[] => {
   if (!programmes) return [];
 
-  // Find index using a simple scan.
-  const currentIndex = programmes.findIndex(
-    (p) =>
-      p.start.getTime() === currentProgramme.start.getTime() &&
-      p.title === currentProgramme.title,
+  // Use binary search to find the programme at this time
+  const index = findFirstVisibleProgrammeIndex(
+    programmes,
+    currentProgramme.startMs,
   );
 
-  return currentIndex === -1
-    ? []
-    : programmes.slice(currentIndex + 1, currentIndex + 1 + count);
+  if (index === -1) return [];
+
+  // Verify it's the right one (edge case: multiple programs starting at same time, though rare in EPG)
+  // Usually the time is unique enough per channel.
+  let actualIndex = index;
+  while (
+    actualIndex < programmes.length &&
+    programmes[actualIndex].startMs <= currentProgramme.startMs
+  ) {
+    if (programmes[actualIndex].title === currentProgramme.title) {
+      break;
+    }
+    actualIndex++;
+  }
+
+  return programmes.slice(actualIndex + 1, actualIndex + 1 + count);
 };
 
 const formatTime = (date: Date) => {

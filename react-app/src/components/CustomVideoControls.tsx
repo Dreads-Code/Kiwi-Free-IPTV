@@ -1,4 +1,21 @@
 import React, { useState, useRef, useEffect } from "react";
+import {
+  Play,
+  Pause,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Maximize,
+  Minimize,
+  Settings,
+  Cast,
+  MonitorPlay,
+  ChevronRight,
+  ArrowLeft,
+  Check,
+  Subtitles,
+  SlidersHorizontal,
+} from "lucide-react";
 import { formatTime } from "../utils/formatTime";
 
 interface CustomControlsProps {
@@ -37,9 +54,9 @@ const VolumeControl: React.FC<{
 }> = ({ volume, isMuted, onVolumeChange, onMuteToggle }) => {
   const [showSlider, setShowSlider] = useState(false);
   const getVolumeIcon = () => {
-    if (isMuted || volume === 0) return "volume_off";
-    if (volume < 0.5) return "volume_down";
-    return "volume_up";
+    if (isMuted || volume === 0) return <VolumeX size={20} />;
+    if (volume < 0.5) return <Volume1 size={20} />;
+    return <Volume2 size={20} />;
   };
 
   return (
@@ -56,9 +73,9 @@ const VolumeControl: React.FC<{
     >
       <button
         onClick={onMuteToggle}
-        className="rounded-full p-2 transition-colors hover:bg-white/10"
+        className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
       >
-        <span className="material-symbols-outlined">{getVolumeIcon()}</span>
+        {getVolumeIcon()}
       </button>
       <div
         className={`origin-left transition-all duration-300 ease-in-out ${showSlider ? "w-24 scale-x-100 opacity-100" : "w-0 scale-x-0 opacity-0"}`}
@@ -112,21 +129,17 @@ const SettingsMenu: React.FC<{
               className="flex items-center justify-between p-3 text-left transition-colors hover:bg-white/10"
             >
               <div className="flex items-center gap-2">
-                <span className="material-symbol-outlined text-lg">
-                  subtitles
-                </span>
+                <Subtitles size={18} />
                 <span>Subtitles</span>
               </div>
               <div className="flex items-center gap-1 text-gray-400">
-                <span>
+                <span className="text-xs">
                   {currentSubtitleTrack === -1
                     ? "Off"
                     : (subtitleTracks.find((t) => t.id === currentSubtitleTrack)
                         ?.label ?? "Unknown")}
                 </span>
-                <span className="material-symbols-outlined text-sm">
-                  chevron_right
-                </span>
+                <ChevronRight size={14} />
               </div>
             </button>
           )}
@@ -138,18 +151,16 @@ const SettingsMenu: React.FC<{
               className="flex items-center justify-between p-3 text-left transition-colors hover:bg-white/10"
             >
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">tune</span>
+                <SlidersHorizontal size={18} />
                 <span>Quality</span>
               </div>
               <div className="flex items-center gap-1 text-gray-400">
-                <span>
+                <span className="text-xs">
                   {currentQuality === -1
                     ? "Auto"
                     : `${(qualities.find((q) => q.id === currentQuality)?.height ?? 0).toString()}p`}
                 </span>
-                <span className="material-symbols-outlined text-sm">
-                  chevron_right
-                </span>
+                <ChevronRight size={14} />
               </div>
             </button>
           )}
@@ -164,9 +175,7 @@ const SettingsMenu: React.FC<{
             }}
             className="sticky top-0 flex items-center gap-2 border-b border-white/10 bg-black/90 p-3 hover:bg-white/10"
           >
-            <span className="material-symbols-outlined text-sm">
-              arrow_back
-            </span>
+            <ArrowLeft size={16} />
             <span className="font-semibold">Subtitles</span>
           </button>
           <button
@@ -177,9 +186,7 @@ const SettingsMenu: React.FC<{
             className={`flex items-center justify-between p-3 text-left hover:bg-white/10 ${currentSubtitleTrack === -1 ? "text-primary-red-ochre font-bold" : ""}`}
           >
             <span>Off</span>
-            {currentSubtitleTrack === -1 && (
-              <span className="material-symbols-outlined text-sm">check</span>
-            )}
+            {currentSubtitleTrack === -1 && <Check size={16} />}
           </button>
           {subtitleTracks.map((track) => (
             <button
@@ -191,9 +198,7 @@ const SettingsMenu: React.FC<{
               className={`flex items-center justify-between p-3 text-left hover:bg-white/10 ${currentSubtitleTrack === track.id ? "text-primary-red-ochre font-bold" : ""}`}
             >
               <span>{track.label}</span>
-              {currentSubtitleTrack === track.id && (
-                <span className="material-symbols-outlined text-sm">check</span>
-              )}
+              {currentSubtitleTrack === track.id && <Check size={16} />}
             </button>
           ))}
         </div>
@@ -207,9 +212,7 @@ const SettingsMenu: React.FC<{
             }}
             className="sticky top-0 flex items-center gap-2 border-b border-white/10 bg-black/90 p-3 hover:bg-white/10"
           >
-            <span className="material-symbols-outlined text-sm">
-              arrow_back
-            </span>
+            <ArrowLeft size={16} />
             <span className="font-semibold">Quality</span>
           </button>
           <button
@@ -220,9 +223,7 @@ const SettingsMenu: React.FC<{
             className={`flex items-center justify-between p-3 text-left hover:bg-white/10 ${currentQuality === -1 ? "text-primary-red-ochre font-bold" : ""}`}
           >
             <span>Auto</span>
-            {currentQuality === -1 && (
-              <span className="material-symbols-outlined text-sm">check</span>
-            )}
+            {currentQuality === -1 && <Check size={16} />}
           </button>
           {qualities.map((quality) => (
             <button
@@ -234,9 +235,7 @@ const SettingsMenu: React.FC<{
               className={`flex items-center justify-between p-3 text-left hover:bg-white/10 ${currentQuality === quality.id ? "text-primary-red-ochre font-bold" : ""}`}
             >
               <span>{quality.height}p</span>
-              {currentQuality === quality.id && (
-                <span className="material-symbols-outlined text-sm">check</span>
-              )}
+              {currentQuality === quality.id && <Check size={16} />}
             </button>
           ))}
         </div>
@@ -297,13 +296,19 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
       className={`pointer-events-none absolute inset-0 flex flex-col justify-between text-white transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}
     >
       {/* Top Info Bar */}
-      <div className="bg-linear-to-b from-black/60 to-transparent p-4">
+      <div
+        className="pointer-events-auto bg-linear-to-b from-black/60 to-transparent p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-xl font-bold drop-shadow-lg">{channelName}</h3>
         <p className="text-sm text-gray-200 drop-shadow-lg">{programmeTitle}</p>
       </div>
 
       {/* Bottom Controls */}
-      <div className="pointer-events-auto bg-linear-to-t from-black/60 to-transparent p-2 md:p-4">
+      <div
+        className="pointer-events-auto bg-linear-to-t from-black/60 to-transparent p-2 md:p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Seek Bar */}
         <div className="group mb-2 w-full">
           <input
@@ -327,11 +332,17 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
           <div className="flex items-center gap-1 md:gap-3">
             <button
               onClick={onPlayPause}
-              className="rounded-full p-2 transition-colors hover:bg-white/10"
+              className="group/btn flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition-all hover:scale-105 hover:bg-white/20"
             >
-              <span className="material-symbols-outlined text-4xl">
-                {isPlaying ? "pause" : "play_arrow"}
-              </span>
+              {isPlaying ? (
+                <Pause size={20} fill="currentColor" className="text-white" />
+              ) : (
+                <Play
+                  size={20}
+                  fill="currentColor"
+                  className="ml-0.5 text-white"
+                />
+              )}
             </button>
             <VolumeControl
               volume={volume}
@@ -355,10 +366,13 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
                 onClick={() => {
                   setShowSettings(!showSettings);
                 }}
-                className={`rounded-full p-2 transition-colors hover:bg-white/10 ${showSettings ? "bg-white/20" : ""}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10 ${showSettings ? "scale-110 bg-white/20" : ""}`}
                 title="Settings"
               >
-                <span className="material-symbols-outlined">settings</span>
+                <Settings
+                  size={20}
+                  className={showSettings ? "rotate-45" : ""}
+                />
               </button>
             )}
 
@@ -381,11 +395,9 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
               <button
                 onClick={onPipToggle}
                 title="Picture in Picture"
-                className="rounded-full p-2 transition-colors hover:bg-white/10"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10"
               >
-                <span className="material-symbols-outlined">
-                  picture_in_picture_alt
-                </span>
+                <MonitorPlay size={20} />
               </button>
             )}
 
@@ -393,18 +405,16 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
               <button
                 onClick={onCast}
                 title="Cast to device"
-                className="rounded-full p-2 transition-colors hover:bg-white/10"
+                className="flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10"
               >
-                <span className="material-symbols-outlined">cast</span>
+                <Cast size={20} />
               </button>
             )}
             <button
               onClick={onFullscreenToggle}
-              className="rounded-full p-2 transition-colors hover:bg-white/10"
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10"
             >
-              <span className="material-symbols-outlined">
-                {isFullscreen ? "fullscreen_exit" : "fullscreen"}
-              </span>
+              {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
             </button>
           </div>
         </div>

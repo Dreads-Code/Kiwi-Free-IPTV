@@ -91,16 +91,18 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${isOpen
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
+        isOpen
           ? "opacity-100 backdrop-blur-md"
           : "backdrop-blur-0 pointer-events-none opacity-0"
-        }`}
+      }`}
     >
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       <div
-        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-white/10 bg-(--md-sys-color-surface-container-high) shadow-2xl transition-all duration-300 ${isOpen ? "translate-y-0 scale-100" : "translate-y-8 scale-95"
-          }`}
+        className={`relative w-full max-w-sm transform overflow-hidden rounded-3xl border border-white/10 bg-(--md-sys-color-surface-container-high) shadow-2xl transition-all duration-300 ${
+          isOpen ? "translate-y-0 scale-100" : "translate-y-8 scale-95"
+        }`}
       >
         {/* Header section */}
         <div className="relative flex flex-col items-center justify-center bg-black/40 p-8">
@@ -140,10 +142,11 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
             <button
               ref={installRef}
               onClick={handleInstall}
-              className={`group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 font-bold transition-all active:scale-[0.98] ${modalFocusIndex === 0
+              className={`group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 font-bold transition-all active:scale-[0.98] ${
+                modalFocusIndex === 0
                   ? "bg-(--md-sys-color-primary) text-(--md-sys-color-on-primary) shadow-lg ring-2 ring-white/20"
                   : "bg-(--md-sys-color-primary)/80 text-(--md-sys-color-on-primary)/90"
-                }`}
+              }`}
             >
               <span className="material-symbols-outlined text-xl">
                 download
@@ -154,10 +157,11 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
             <button
               ref={copyRef}
               onClick={handleCopy}
-              className={`group flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3.5 font-bold transition-all active:scale-[0.98] ${modalFocusIndex === 1
+              className={`group flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3.5 font-bold transition-all active:scale-[0.98] ${
+                modalFocusIndex === 1
                   ? "border-(--md-sys-color-primary) bg-(--md-sys-color-surface-container-highest) text-(--md-sys-color-primary) ring-2 ring-white/10"
                   : "border-(--md-sys-color-outline) bg-(--md-sys-color-surface-container-high) text-(--md-sys-color-primary)/80"
-                }`}
+              }`}
             >
               {copied ? (
                 <>

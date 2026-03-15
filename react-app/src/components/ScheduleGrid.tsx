@@ -1,6 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import { Channel, EpgData, Programme } from "../types";
 import ProgramBlock from "./ProgramBlock";
+import {
+  findCurrentProgrammeIndex,
+  findFirstVisibleProgrammeIndex,
+  findFirstProgrammeStartingAfter,
+} from "../utils/programmeUtils";
 
 interface ScheduleGridProps {
   scrollTop: number;
@@ -39,7 +44,10 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           // Since programs are sorted by start time in tvService,
           // the first program that ENDS after our start time is the
           // starting point for what we need to render.
-          const firstActiveIdx = rawProgs.findIndex((p) => p.stopMs > start);
+          const firstActiveIdx = findFirstVisibleProgrammeIndex(
+            rawProgs,
+            start,
+          );
 
           return {
             channel,
@@ -80,8 +88,9 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
             targetChannel = 0;
             const now = Date.now();
             const firstChannelProgs = memoizedSchedule[0]?.programmes ?? [];
-            const nowIdx = firstChannelProgs.findIndex(
-              (p) => now >= p.startMs && now < p.stopMs,
+            const nowIdx = findCurrentProgrammeIndex(
+              firstChannelProgs,
+              new Date(now),
             );
             targetProg = nowIdx === -1 ? 0 : nowIdx;
           }
@@ -118,12 +127,14 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       const nextProgs = memoizedSchedule[nextChannel]?.programmes;
       if (!nextProgs) return { nextChannel, nextProg: progIdx };
 
-      const foundIdx = nextProgs.findIndex(
-        (p: Programme) => currentTime >= p.startMs && currentTime < p.stopMs,
+      const foundIdx = findCurrentProgrammeIndex(
+        nextProgs,
+        new Date(currentTime),
       );
       if (foundIdx === -1) {
-        const closestIdx = nextProgs.findIndex(
-          (p: Programme) => p.startMs >= currentTime,
+        const closestIdx = findFirstProgrammeStartingAfter(
+          nextProgs,
+          currentTime,
         );
         return {
           nextChannel,
@@ -216,7 +227,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
     return (
       <div
         ref={gridRef}
-        className="relative grow shrink-0 outline-none"
+        className="relative shrink-0 grow outline-none"
         onKeyDown={handleKeyDown}
         tabIndex={-1}
         role="grid"

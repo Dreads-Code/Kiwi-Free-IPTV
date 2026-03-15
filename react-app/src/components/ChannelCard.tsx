@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Channel, Programme } from "../types";
 import { useProgramImage } from "../hooks/useShowImage";
+import { findCurrentProgramme } from "../utils/programmeUtils";
 
 /**
  * Component representing a channel in the main deck.
@@ -12,17 +13,6 @@ interface DeckChannelCardProps {
   onSelect: (channelId: string) => void;
   isActive: boolean;
 }
-
-/**
- * Finds the currently airing programme for a channel.
- */
-const findCurrentProgramme = (
-  programmes: Programme[] | undefined,
-): Programme | null => {
-  if (!programmes || programmes.length === 0) return null;
-  const now = new Date();
-  return programmes.find((p) => now >= p.start && now < p.stop) ?? null;
-};
 
 const DeckChannelCard: React.FC<DeckChannelCardProps> = React.memo(
   ({ channel, programmes, onSelect, isActive }) => {
