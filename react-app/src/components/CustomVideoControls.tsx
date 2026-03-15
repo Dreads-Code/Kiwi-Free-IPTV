@@ -293,7 +293,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
 
   return (
     <div
-      className={`pointer-events-none absolute inset-0 flex flex-col justify-between text-white transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}
+      className={`pointer-events-none absolute inset-0 z-20 flex flex-col justify-between text-white transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}
     >
       {/* Top Info Bar */}
       <div
