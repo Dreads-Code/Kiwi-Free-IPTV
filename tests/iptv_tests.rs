@@ -11,6 +11,8 @@ fn create_mock_state() -> AppState {
         epg_cache: Arc::new(moka::future::Cache::new(100)),
         image_cache: Arc::new(moka::future::Cache::new(100)),
         tvmaze_client: Arc::new(tvmaze::TvMazeClient::new()),
+        channel_cache: Arc::new(moka::future::Cache::new(100)),
+        channel_map_cache: Arc::new(moka::future::Cache::new(100)),
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
     }
@@ -19,42 +21,42 @@ fn create_mock_state() -> AppState {
 #[test]
 fn test_categorize_channel() {
     // Sports
-    assert_eq!(iptv::categorize_channel("Sky Sport 1", &None), "Sports");
-    assert_eq!(iptv::categorize_channel("Trackside 1", &None), "Sports");
-    assert_eq!(iptv::categorize_channel("RedBull TV", &None), "Sports");
-    assert_eq!(iptv::categorize_channel("MotoGP", &None), "Sports");
-    assert_eq!(iptv::categorize_channel("Sky Open", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("sky sport 1", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("trackside 1", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("redbull tv", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("motogp", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("sky open", &None), "Sports");
 
     // News
-    assert_eq!(iptv::categorize_channel("CNN International", &None), "News");
-    assert_eq!(iptv::categorize_channel("Al Jazeera", &None), "News");
-    assert_eq!(iptv::categorize_channel("Parliament TV", &None), "News");
-    assert_eq!(iptv::categorize_channel("DW English", &None), "News");
+    assert_eq!(iptv::categorize_channel("cnn international", &None), "News");
+    assert_eq!(iptv::categorize_channel("al jazeera", &None), "News");
+    assert_eq!(iptv::categorize_channel("parliament tv", &None), "News");
+    assert_eq!(iptv::categorize_channel("dw english", &None), "News");
 
     // Religious
-    assert_eq!(iptv::categorize_channel("Shine TV", &None), "Religious");
-    assert_eq!(iptv::categorize_channel("Hope Channel", &None), "Religious");
-    assert_eq!(iptv::categorize_channel("Firstlight", &None), "Religious");
+    assert_eq!(iptv::categorize_channel("shine tv", &None), "Religious");
+    assert_eq!(iptv::categorize_channel("hope channel", &None), "Religious");
+    assert_eq!(iptv::categorize_channel("firstlight", &None), "Religious");
 
     // New Zealand
-    assert_eq!(iptv::categorize_channel("TVNZ 1", &None), "New Zealand");
-    assert_eq!(iptv::categorize_channel("Three", &None), "New Zealand");
-    assert_eq!(iptv::categorize_channel("Eden", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("tvnz 1", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("three", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("eden", &None), "New Zealand");
     assert_eq!(
-        iptv::categorize_channel("Whakaata Māori", &None),
+        iptv::categorize_channel("whakaata māori", &None),
         "New Zealand"
     );
-    assert_eq!(iptv::categorize_channel("Bravo", &None), "New Zealand");
-    assert_eq!(iptv::categorize_channel("Rush", &None), "New Zealand");
-    assert_eq!(iptv::categorize_channel("Duke", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("bravo", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("rush", &None), "New Zealand");
+    assert_eq!(iptv::categorize_channel("duke", &None), "New Zealand");
     assert_eq!(
-        iptv::categorize_channel("Wairarapa TV", &None),
+        iptv::categorize_channel("wairarapa tv", &None),
         "New Zealand"
     );
 
     // International / default
     assert_eq!(
-        iptv::categorize_channel("Random Channel", &None),
+        iptv::categorize_channel("random channel", &None),
         "International"
     );
 }
@@ -210,8 +212,10 @@ async fn test_fetch_data_fast_path_cache() {
         programmes: vec![],
         http_headers: None,
     }];
-    let json = serde_json::to_string(&channels).unwrap();
-    state.stream_cache.insert("data".to_string(), json).await;
+    state
+        .channel_cache
+        .insert("data".to_string(), channels)
+        .await;
 
     let res = iptv::fetch_data(&state).await.unwrap();
     assert_eq!(res.len(), 1);
@@ -249,7 +253,8 @@ async fn test_fetch_data_cache_miss_success() {
     // Assert caches are populated
     assert!(state.stream_cache.get("m3u8").await.is_some());
     assert!(state.epg_cache.get("epg_struct").await.is_some());
-    assert!(state.stream_cache.get("data").await.is_some());
+    assert!(state.channel_cache.get("data").await.is_some());
+    assert!(state.channel_map_cache.get("data").await.is_some());
 }
 
 #[tokio::test]
@@ -361,11 +366,8 @@ async fn test_catalog_generation() {
         http_headers: None,
     }];
     state
-        .stream_cache
-        .insert(
-            "data".to_string(),
-            serde_json::to_string(&channels).unwrap(),
-        )
+        .channel_cache
+        .insert("data".to_string(), channels)
         .await;
 
     let catalog = iptv::catalog(&state).await.unwrap();
@@ -393,12 +395,18 @@ async fn test_meta_request() {
         programmes: vec![],
         http_headers: None,
     }];
+
+    let mut map = HashMap::new();
+    for c in &channels {
+        map.insert(c.id.clone(), c.clone());
+    }
     state
-        .stream_cache
-        .insert(
-            "data".to_string(),
-            serde_json::to_string(&channels).unwrap(),
-        )
+        .channel_cache
+        .insert("data".to_string(), channels)
+        .await;
+    state
+        .channel_map_cache
+        .insert("data".to_string(), map)
         .await;
 
     // Found
@@ -446,22 +454,19 @@ async fn test_stream_request() {
         programmes: vec![],
         http_headers: Some(headers),
     }];
-    state
-        .stream_cache
-        .insert(
-            "data".to_string(),
-            serde_json::to_string(&channels).unwrap(),
-        )
-        .await;
 
-    // Direct Play / Unproxied if it resolves to fullscreen.nz
-    // Note: our current stream() logic always returns a proxy URL via build_proxy_url
-    // BUT the user request said:
-    // "Test Case 1: Direct Play Supported Channel. Scenario: Stream URL contains domains that allow direct play (e.g., fullscreen.nz). Expected: The output url is exactly the input URL (unproxied)."
-    // I should check if I need to update src/iptv.rs to support direct play exclusion.
-    // Looking at src/iptv.rs:547:
-    // "let proxy_url = crate::proxy::build_proxy_url(base_url, &stream_url, channel.http_headers.as_ref());"
-    // It ALWAYS uses proxy. The proxy itself handles redirection optimization.
+    let mut map = HashMap::new();
+    for c in &channels {
+        map.insert(c.id.clone(), c.clone());
+    }
+    state
+        .channel_cache
+        .insert("data".to_string(), channels)
+        .await;
+    state
+        .channel_map_cache
+        .insert("data".to_string(), map)
+        .await;
 
     let res = iptv::stream(&state, "stremio_iptv_id:mjh-tvnz-1", "http://localhost")
         .await

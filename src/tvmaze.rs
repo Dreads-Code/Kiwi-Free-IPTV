@@ -52,6 +52,7 @@ struct TvMazeUrl {
 /// Client for interacting with the TVMaze API.
 pub struct TvMazeClient {
     client: reqwest::Client,
+    base_url: String,
 }
 
 impl TvMazeClient {
@@ -59,6 +60,23 @@ impl TvMazeClient {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
+            base_url: "https://api.tvmaze.com".to_string(),
+        }
+    }
+}
+
+impl Default for TvMazeClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TvMazeClient {
+    /// Creates a new TVMaze client with a custom base URL (useful for testing).
+    pub fn with_base_url(base_url: String) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            base_url,
         }
     }
 
@@ -72,7 +90,8 @@ impl TvMazeClient {
         info!("[TVMaze] Searching for show images: \"{}\"", cleaned_query);
 
         let search_url = format!(
-            "https://api.tvmaze.com/search/shows?q={}",
+            "{}/search/shows?q={}",
+            self.base_url,
             urlencoding::encode(&cleaned_query)
         );
 
@@ -103,16 +122,16 @@ impl TvMazeClient {
         };
 
         // Attempt to fetch additional image types (e.g., banners)
-        let images_url = format!("https://api.tvmaze.com/shows/{}/images", show_id);
-        if let Ok(res) = self.client.get(&images_url).send().await {
-            if let Ok(images_data) = res.json::<Vec<TvMazeImage>>().await {
-                for img in images_data {
-                    if images_result.banner.is_none() && img.r#type == "banner" {
-                        images_result.banner = Some(img.resolutions.original.url.clone());
-                    }
-                    if img.r#type == "poster" && img.main {
-                        images_result.poster = Some(img.resolutions.original.url.clone());
-                    }
+        let images_url = format!("{}/shows/{}/images", self.base_url, show_id);
+        if let Ok(res) = self.client.get(&images_url).send().await
+            && let Ok(images_data) = res.json::<Vec<TvMazeImage>>().await
+        {
+            for img in images_data {
+                if images_result.banner.is_none() && img.r#type == "banner" {
+                    images_result.banner = Some(img.resolutions.original.url.clone());
+                }
+                if img.r#type == "poster" && img.main {
+                    images_result.poster = Some(img.resolutions.original.url.clone());
                 }
             }
         }
@@ -175,9 +194,32 @@ pub fn process_epg_icon_url(url: &str) -> Option<String> {
         return None;
     }
 
-    let pathname = parsed.path().to_lowercase();
+    let pathname = parsed.path();
+    let query = parsed.query().unwrap_or("");
     let image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"];
-    if !image_extensions.iter().any(|ext| pathname.ends_with(ext)) {
+
+    let is_image_path = image_extensions.iter().any(|ext| {
+        pathname.len() >= ext.len()
+            && pathname[pathname.len() - ext.len()..].eq_ignore_ascii_case(ext)
+    });
+
+    let is_image_query = image_extensions
+        .iter()
+        .any(|ext| query.contains(&ext[1..]) || contains_ignore_ascii_case(query, "format="));
+
+    fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
+        if needle.is_empty() {
+            return true;
+        }
+        haystack
+            .as_bytes()
+            .windows(needle.len())
+            .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+    }
+
+    let is_trusted_cdn = processed_url.contains("cdn.fullscreen.nz");
+
+    if !is_image_path && !is_image_query && !is_trusted_cdn {
         debug!("Filtered out non-image EPG icon URL: {}", processed_url);
         return None;
     }

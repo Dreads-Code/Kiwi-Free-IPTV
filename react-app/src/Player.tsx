@@ -151,6 +151,35 @@ const Player: React.FC = () => {
   const scheduleButtonRef = useRef<HTMLButtonElement>(null);
   const stremioButtonRef = useRef<HTMLButtonElement>(null);
   const keyPressCooldown = useRef(false);
+  const modalDepthRef = useRef(0);
+
+  // Internal state clearers (no history side effects)
+  const closePlayer = useCallback(() => {
+    if (stateRef.current.playingChannel) {
+      setActiveChannelId(stateRef.current.playingChannel.id);
+    }
+    setPlayingChannel(null);
+    setCurrentStreamUrl(null);
+    setFocusLocation("deck");
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    setSelectedChannelId(null);
+    setSelectedScheduleItem(null);
+    if (!stateRef.current.scheduleViewConfig.isOpen) {
+      setFocusLocation("deck");
+    }
+  }, []);
+
+  const closeSchedule = useCallback(() => {
+    setScheduleViewConfig({ isOpen: false, channelContext: null });
+    setFocusLocation("deck");
+  }, []);
+
+  const closeStremio = useCallback(() => {
+    setIsStremioOpen(false);
+    setFocusLocation("deck");
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -217,62 +246,70 @@ const Player: React.FC = () => {
   }, [selectedChannelId, selectedScheduleItem, channels, epg]);
 
   const handleChannelSelect = useCallback((channelId: string) => {
+    setActiveChannelId(channelId);
     setSelectedChannelId(channelId);
   }, []);
 
   const handlePlay = (url: string) => {
     if (detailData) {
+      setActiveChannelId(detailData.channel.id);
       setPlayingChannel(detailData.channel);
       setCurrentStreamUrl(url);
-      handleCloseDetail();
+      closeDetail();
       if (scheduleViewConfig.isOpen) {
-        handleCloseSchedule();
+        closeSchedule();
       }
     }
   };
 
   const handleClosePlayer = useCallback(() => {
-    setPlayingChannel(null);
-    setCurrentStreamUrl(null);
-    setFocusLocation("deck");
-  }, []);
+    if (modalDepthRef.current > 0) {
+      window.history.back();
+    } else {
+      closePlayer();
+    }
+  }, [closePlayer]);
 
   const handleCloseDetail = useCallback(() => {
-    setSelectedChannelId(null);
-    setSelectedScheduleItem(null);
-    if (!scheduleViewConfig.isOpen) {
-      setFocusLocation("deck");
+    if (modalDepthRef.current > 0) {
+      window.history.back();
+    } else {
+      closeDetail();
     }
-  }, [scheduleViewConfig.isOpen]);
+  }, [closeDetail]);
 
   const handleOpenSchedule = useCallback(
     (channel: Channel | null) => {
       if (selectedChannelId || selectedScheduleItem) {
-        setSelectedChannelId(null);
-        setSelectedScheduleItem(null);
+        closeDetail();
       }
       setScheduleViewConfig({ isOpen: true, channelContext: channel });
     },
-    [selectedChannelId, selectedScheduleItem],
+    [selectedChannelId, selectedScheduleItem, closeDetail],
   );
 
   const handleCloseSchedule = useCallback(() => {
-    setScheduleViewConfig({ isOpen: false, channelContext: null });
-    setFocusLocation("deck");
-  }, []);
+    if (modalDepthRef.current > 0) {
+      window.history.back();
+    } else {
+      closeSchedule();
+    }
+  }, [closeSchedule]);
 
   const handleOpenStremio = useCallback(() => {
     if (selectedChannelId || selectedScheduleItem) {
-      setSelectedChannelId(null);
-      setSelectedScheduleItem(null);
+      closeDetail();
     }
     setIsStremioOpen(true);
-  }, [selectedChannelId, selectedScheduleItem]);
+  }, [selectedChannelId, selectedScheduleItem, closeDetail]);
 
   const handleCloseStremio = useCallback(() => {
-    setIsStremioOpen(false);
-    setFocusLocation("deck");
-  }, []);
+    if (modalDepthRef.current > 0) {
+      window.history.back();
+    } else {
+      closeStremio();
+    }
+  }, [closeStremio]);
 
   const handleProgrammeSelect = useCallback(
     (programme: Programme, channel: Channel) => {
@@ -315,6 +352,43 @@ const Player: React.FC = () => {
     focusLocation,
     headerFocusAnchor,
   ]);
+
+  // Push state to history when a modal opens
+  useEffect(() => {
+    const depth = [
+      !!playingChannel,
+      !!detailData,
+      !!scheduleViewConfig.isOpen,
+      !!isStremioOpen,
+    ].filter(Boolean).length;
+
+    if (depth > modalDepthRef.current) {
+      window.history.pushState({ isModal: true, depth }, "");
+    }
+    modalDepthRef.current = depth;
+  }, [playingChannel, detailData, scheduleViewConfig.isOpen, isStremioOpen]);
+
+  // Handle hardware back button
+  useEffect(() => {
+    const handlePopState = () => {
+      const { playingChannel, detailData, scheduleViewConfig, isStremioOpen } =
+        stateRef.current;
+
+      // Close top-most layer
+      if (playingChannel) {
+        closePlayer();
+      } else if (detailData) {
+        closeDetail();
+      } else if (scheduleViewConfig.isOpen) {
+        closeSchedule();
+      } else if (isStremioOpen) {
+        closeStremio();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [closePlayer, closeDetail, closeSchedule, closeStremio]);
 
   useEffect(() => {
     const handleEscape = () => {

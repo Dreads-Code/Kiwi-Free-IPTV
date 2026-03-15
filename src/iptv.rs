@@ -100,7 +100,7 @@ pub async fn make_request(url: &str, retries: u32) -> Result<String, reqwest::Er
             .await
             .and_then(|r| r.error_for_status())
         {
-            Ok(res) => return Ok(res.text().await?),
+            Ok(res) => return res.text().await,
             Err(e) => {
                 if attempt >= retries {
                     return Err(e);
@@ -118,10 +118,8 @@ pub async fn make_request(url: &str, retries: u32) -> Result<String, reqwest::Er
     }
 }
 
-/// Categorizes a channel based on its name and potential headers.
-pub fn categorize_channel(name: &str, _headers: &Option<HashMap<String, String>>) -> String {
-    let name_lower = name.to_lowercase();
-
+/// Categorizes a channel based on its pre-lowercased name and potential headers.
+pub fn categorize_channel(name_lower: &str, _headers: &Option<HashMap<String, String>>) -> String {
     let sports_keywords = [
         "sport",
         "trackside",
@@ -170,12 +168,7 @@ pub fn categorize_channel(name: &str, _headers: &Option<HashMap<String, String>>
 /// Uses heavy caching to minimize external requests.
 pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn std::error::Error>> {
     // Check if fully processed data is already cached
-    if let Some(data) = state
-        .stream_cache
-        .get("data")
-        .await
-        .and_then(|cached| serde_json::from_str::<Vec<ChannelMeta>>(&cached).ok())
-    {
+    if let Some(data) = state.channel_cache.get("data").await {
         return Ok(data);
     }
 
@@ -268,83 +261,105 @@ pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn st
             if !val.is_empty() {
                 current_headers.insert("Referer".to_string(), val.to_string());
             }
-        } else if !line.starts_with('#') && !line.is_empty() {
-            if let Some(name) = current_name.take() {
-                let tvg_id = current_tvg_id.take().unwrap_or_default();
-                let tvg_logo = current_tvg_logo.take();
+        } else if !line.starts_with('#')
+            && !line.is_empty()
+            && let Some(name) = current_name.take()
+        {
+            let tvg_id = current_tvg_id.take().unwrap_or_default();
+            let tvg_logo = current_tvg_logo.take();
 
-                let channel_id = if tvg_id.is_empty() {
-                    format!("mjh-{}", name.replace(" ", "-").to_lowercase())
-                } else if tvg_id.starts_with("mjh-") {
-                    tvg_id.clone()
-                } else {
-                    format!("mjh-{}", tvg_id)
-                };
+            let channel_id = if tvg_id.is_empty() {
+                format!("mjh-{}", name.replace(" ", "-").to_lowercase())
+            } else if tvg_id.starts_with("mjh-") {
+                tvg_id.clone()
+            } else {
+                format!("mjh-{}", tvg_id)
+            };
 
-                let epg_data = epg_map.get(&tvg_id);
-                let channel_programmes = programmes_map.get(&tvg_id).cloned().unwrap_or_default();
+            let epg_data = epg_map.get(&tvg_id);
+            let channel_programmes = programmes_map.get(&tvg_id).cloned().unwrap_or_default();
 
-                let icon = tvg_logo
-                    .or_else(|| epg_data.and_then(|e| e.icon.as_ref().map(|i| i.src.clone())));
+            let icon =
+                tvg_logo.or_else(|| epg_data.and_then(|e| e.icon.as_ref().map(|i| i.src.clone())));
 
-                let headers = if current_headers.is_empty() {
-                    None
-                } else {
-                    Some(current_headers.clone())
-                };
-                current_headers.clear();
+            let headers = if current_headers.is_empty() {
+                None
+            } else {
+                Some(current_headers.clone())
+            };
+            current_headers.clear();
 
-                channels.push(ChannelMeta {
-                    id: format!("stremio_iptv_id:{}", channel_id),
-                    name: name.clone(),
-                    name_lower: name.to_lowercase(),
-                    type_name: "tv".to_string(),
-                    poster: icon.clone(),
-                    poster_shape: "regular".to_string(),
-                    background: icon.clone(),
-                    logo: icon.clone(),
-                    description: format!("Watch {}", name),
-                    url: line.to_string(),
-                    category: categorize_channel(&name, &headers),
-                    programmes: channel_programmes,
-                    http_headers: headers,
-                });
-            }
+            let name_lower = name.to_lowercase();
+            channels.push(ChannelMeta {
+                id: format!("stremio_iptv_id:{}", channel_id),
+                name: name.clone(),
+                name_lower: name_lower.clone(),
+                type_name: "tv".to_string(),
+                poster: icon.clone(),
+                poster_shape: "regular".to_string(),
+                background: icon.clone(),
+                logo: icon.clone(),
+                description: format!("Watch {}", name),
+                url: line.to_string(),
+                category: categorize_channel(&name_lower, &headers),
+                programmes: channel_programmes,
+                http_headers: headers,
+            });
         }
     }
 
     // Sort channels with specific weights for common NZ networks
-    channels.sort_by_key(|c| {
-        let name = c.name.to_lowercase();
-        let id = c.id.as_str();
-
-        let weight = if name.contains("+1") || name.contains("plus 1") || id.ends_with("plus1") {
-            1000
-        } else {
-            match id {
-                "stremio_iptv_id:mjh-tvnz-1" => 1,
-                "stremio_iptv_id:mjh-tvnz-2" => 2,
-                "stremio_iptv_id:mjh-three" => 3,
-                "stremio_iptv_id:mjh-bravo" => 4,
-                "stremio_iptv_id:mjh-maori-tv" => 5,
-                "stremio_iptv_id:mjh-tvnz-duke" => 6,
-                "stremio_iptv_id:mjh-sky-open" | "stremio_iptv_id:mjh-prime" => 7,
-                "stremio_iptv_id:mjh-eden" => 8,
-                "stremio_iptv_id:mjh-sky-hgtv" => 9,
-                _ => 100,
+    channels.sort_by(|a, b| {
+        let get_weight = |c: &ChannelMeta| {
+            let name = &c.name_lower;
+            let id = c.id.as_str();
+            if name.contains("+1") || name.contains("plus 1") || id.ends_with("plus1") {
+                1000
+            } else {
+                match id {
+                    "stremio_iptv_id:mjh-tvnz-1" => 1,
+                    "stremio_iptv_id:mjh-tvnz-2" => 2,
+                    "stremio_iptv_id:mjh-three" => 3,
+                    "stremio_iptv_id:mjh-bravo" => 4,
+                    "stremio_iptv_id:mjh-maori-tv" => 5,
+                    "stremio_iptv_id:mjh-tvnz-duke" => 6,
+                    "stremio_iptv_id:mjh-sky-open" | "stremio_iptv_id:mjh-prime" => 7,
+                    "stremio_iptv_id:mjh-eden" => 8,
+                    "stremio_iptv_id:mjh-sky-hgtv" => 9,
+                    _ => 100,
+                }
             }
         };
 
-        (weight, name)
+        get_weight(a)
+            .cmp(&get_weight(b))
+            .then_with(|| a.name_lower.cmp(&b.name_lower))
     });
 
+    // Populate caches
+    let mut map = HashMap::new();
+    for c in &channels {
+        map.insert(c.id.clone(), c.clone());
+    }
+
+    state
+        .channel_cache
+        .insert("data".to_string(), channels.clone())
+        .await;
+    state
+        .channel_map_cache
+        .insert("data".to_string(), map)
+        .await;
+
+    // Also keep the JSON cache for compatibility/other uses if needed
     if let Ok(json_str) = serde_json::to_string(&channels) {
         state
             .stream_cache
             .insert("data".to_string(), json_str)
             .await;
-        info!("Cached {} processed channels.", channels.len());
     }
+
+    info!("Cached {} processed channels.", channels.len());
 
     Ok(channels)
 }
@@ -358,8 +373,9 @@ pub async fn format_meta(
     is_catalog: bool,
 ) -> serde_json::Value {
     let mut current_program = None;
+    let now = now_str.as_str();
     for p in &channel.programmes {
-        if p.start.as_str() <= now_str.as_str() && p.stop.as_str() > now_str.as_str() {
+        if p.start.as_str() <= now && p.stop.as_str() > now {
             current_program = Some(p);
             break;
         }
@@ -401,11 +417,10 @@ pub async fn format_meta(
         if let (Ok(st), Ok(end)) = (
             chrono::DateTime::parse_from_str(&cp.start, "%Y%m%d%H%M%S %z"),
             chrono::DateTime::parse_from_str(&cp.stop, "%Y%m%d%H%M%S %z"),
-        ) {
-            let mins = (end - st).num_minutes();
-            if mins > 0 {
-                meta_obj["runtime"] = serde_json::json!(format!("{} min", mins));
-            }
+        ) && let mins = (end - st).num_minutes()
+            && mins > 0
+        {
+            meta_obj["runtime"] = serde_json::json!(format!("{} min", mins));
         }
 
         if let Some(r) = &cp.rating
@@ -420,36 +435,34 @@ pub async fn format_meta(
         let mut banner = None;
 
         // Try to obtain artwork from EPG, fall back to TVMaze
-        if let Some(icon) = &cp.icon {
-            if let Some(valid_url) = process_epg_icon_url(&icon.src) {
-                poster = Some(valid_url);
-            }
+        if let Some(icon) = &cp.icon
+            && let Some(valid_url) = process_epg_icon_url(&icon.src)
+        {
+            poster = Some(valid_url);
         }
 
-        if poster.is_none() {
-            if let Some(title) = &cp.title {
-                let cache_key = title.clone();
-                if let Some(cached) = state.image_cache.get(&cache_key).await {
-                    poster = cached.poster;
-                    banner = cached.banner;
-                } else {
-                    if let Some(enriched) = state.tvmaze_client.fetch_show_images(title).await {
-                        poster = enriched.poster.clone();
-                        banner = enriched.banner.clone();
-                        state.image_cache.insert(cache_key, enriched).await;
-                    } else {
-                        state
-                            .image_cache
-                            .insert(
-                                cache_key,
-                                tvmaze::ShowImages {
-                                    poster: None,
-                                    banner: None,
-                                },
-                            )
-                            .await;
-                    }
-                }
+        if poster.is_none()
+            && let Some(title) = &cp.title
+        {
+            let cache_key = title.clone();
+            if let Some(cached) = state.image_cache.get(&cache_key).await {
+                poster = cached.poster;
+                banner = cached.banner;
+            } else if let Some(enriched) = state.tvmaze_client.fetch_show_images(title).await {
+                poster = enriched.poster.clone();
+                banner = enriched.banner.clone();
+                state.image_cache.insert(cache_key, enriched).await;
+            } else {
+                state
+                    .image_cache
+                    .insert(
+                        cache_key,
+                        tvmaze::ShowImages {
+                            poster: None,
+                            banner: None,
+                        },
+                    )
+                    .await;
             }
         }
 
@@ -490,8 +503,16 @@ pub async fn meta(
     state: &AppState,
     id: &str,
 ) -> Result<Option<serde_json::Value>, Box<dyn std::error::Error>> {
-    let channels = fetch_data(state).await?;
-    let channel = match channels.iter().find(|c| c.id == id) {
+    // Attempt O(1) lookup from the channel map cache
+    let channel = if let Some(map) = state.channel_map_cache.get("data").await {
+        map.get(id).cloned()
+    } else {
+        // Cache miss, refresh all data
+        let channels = fetch_data(state).await?;
+        channels.into_iter().find(|c| c.id == id)
+    };
+
+    let channel = match channel {
         Some(c) => c,
         None => return Ok(None),
     };
@@ -509,8 +530,16 @@ pub async fn stream(
     id: &str,
     base_url: &str,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let channels = fetch_data(state).await?;
-    let channel = match channels.iter().find(|c| c.id == id) {
+    // Attempt O(1) lookup from the channel map cache
+    let channel = if let Some(map) = state.channel_map_cache.get("data").await {
+        map.get(id).cloned()
+    } else {
+        // Cache miss, refresh all data
+        let channels = fetch_data(state).await?;
+        channels.into_iter().find(|c| c.id == id)
+    };
+
+    let channel = match channel {
         Some(c) => c,
         None => return Ok(serde_json::json!([])),
     };
@@ -543,9 +572,10 @@ pub async fn stream(
 
     let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
 
+    let now = now_str.as_str();
     let mut show_title = "Live TV".to_string();
     for p in &channel.programmes {
-        if p.start <= now_str && p.stop > now_str {
+        if p.start.as_str() <= now && p.stop.as_str() > now {
             if let Some(t) = &p.title {
                 show_title = t.to_string();
             }

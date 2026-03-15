@@ -47,14 +47,21 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
         if (isProgrammaticScrollActive.current) return;
 
         let bestEntry: IntersectionObserverEntry | null = null;
+        let minDistance = Infinity;
+
+        const containerRect = scroller.getBoundingClientRect();
+        const containerCenter = containerRect.left + containerRect.width / 2;
+
         for (const entry of entries) {
-          if (
-            entry.isIntersecting &&
-            entry.intersectionRatio >= 0.75 &&
-            (!bestEntry ||
-              entry.intersectionRatio > bestEntry.intersectionRatio)
-          ) {
-            bestEntry = entry;
+          if (entry.isIntersecting) {
+            const rect = entry.boundingClientRect;
+            const entryCenter = rect.left + rect.width / 2;
+            const distance = Math.abs(entryCenter - containerCenter);
+
+            if (distance < minDistance) {
+              minDistance = distance;
+              bestEntry = entry;
+            }
           }
         }
 
@@ -67,7 +74,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
       },
       {
         root: scroller,
-        threshold: 0.75,
+        threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
       },
     );
 

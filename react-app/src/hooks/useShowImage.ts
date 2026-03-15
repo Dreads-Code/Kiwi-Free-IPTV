@@ -35,12 +35,17 @@ const processEpgIconUrl = (url: string | undefined): string | undefined => {
 
   try {
     const parsed = new URL(processedUrl);
+    const pathname = parsed.pathname.toLowerCase();
+    const search = parsed.search.toLowerCase();
     const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"];
-    if (
-      !imageExtensions.some((ext) =>
-        parsed.pathname.toLowerCase().endsWith(ext),
-      )
-    ) {
+
+    const isImagePath = imageExtensions.some((ext) => pathname.endsWith(ext));
+    const isImageQuery = imageExtensions.some(
+      (ext) => search.includes(ext.substring(1)) || search.includes("format="),
+    );
+    const isTrustedCdn = processedUrl.includes("cdn.fullscreen.nz");
+
+    if (!isImagePath && !isImageQuery && !isTrustedCdn) {
       return undefined;
     }
   } catch {

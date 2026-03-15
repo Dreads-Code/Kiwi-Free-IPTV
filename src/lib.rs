@@ -30,6 +30,10 @@ pub struct AppState {
     pub image_cache: Arc<moka::future::Cache<String, tvmaze::ShowImages>>,
     /// Client for TVMaze API integration.
     pub tvmaze_client: Arc<tvmaze::TvMazeClient>,
+    /// Cache for processed channel lists.
+    pub channel_cache: Arc<moka::future::Cache<String, Vec<iptv::ChannelMeta>>>,
+    /// Cache for indexed channels (O(1) lookup).
+    pub channel_map_cache: Arc<moka::future::Cache<String, HashMap<String, iptv::ChannelMeta>>>,
     /// Base URL for the M3U8 playlist.
     pub m3u8_url: String,
     /// Base URL for the EPG source.
@@ -60,11 +64,25 @@ pub fn build_router() -> Router {
 
     let tvmaze_client = Arc::new(tvmaze::TvMazeClient::new());
 
+    let channel_cache = Arc::new(
+        moka::future::Cache::builder()
+            .time_to_live(std::time::Duration::from_secs(3600))
+            .build(),
+    );
+
+    let channel_map_cache = Arc::new(
+        moka::future::Cache::builder()
+            .time_to_live(std::time::Duration::from_secs(3600))
+            .build(),
+    );
+
     let state = AppState {
         stream_cache,
         epg_cache,
         image_cache,
         tvmaze_client,
+        channel_cache,
+        channel_map_cache,
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
     };

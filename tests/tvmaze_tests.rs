@@ -1,4 +1,5 @@
-use iptv_nz_addon_rust::tvmaze::{clean_title_for_search, process_epg_icon_url};
+use iptv_nz_addon_rust::tvmaze::{TvMazeClient, clean_title_for_search, process_epg_icon_url};
+use mockito::Server;
 
 #[test]
 fn test_clean_title() {
@@ -25,4 +26,76 @@ fn test_process_icon_url() {
     );
     assert_eq!(process_epg_icon_url("not-a-url"), None);
     assert_eq!(process_epg_icon_url("https://example.com/page"), None);
+}
+
+#[tokio::test]
+async fn test_fetch_show_images_success() {
+    let mut server = Server::new_async().await;
+    let show_search_json = r#"[{"show":{"id":123,"image":{"original":"http://poster.jpg","medium":"http://poster_m.jpg"}}}]"#;
+    let show_images_json = r#"[{"type":"banner","main":false,"resolutions":{"original":{"url":"http://banner.jpg"}}}]"#;
+
+    let m1 = server
+        .mock("GET", "/search/shows?q=Test%20Show")
+        .with_status(200)
+        .with_body(show_search_json)
+        .create_async()
+        .await;
+
+    let m2 = server
+        .mock("GET", "/shows/123/images")
+        .with_status(200)
+        .with_body(show_images_json)
+        .create_async()
+        .await;
+
+    let client = TvMazeClient::with_base_url(server.url());
+    let result = client
+        .fetch_show_images("Test Show")
+        .await
+        .expect("Should return ShowImages");
+
+    assert_eq!(result.poster, Some("http://poster.jpg".to_string()));
+    assert_eq!(result.banner, Some("http://banner.jpg".to_string()));
+    m1.assert_async().await;
+    m2.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_fetch_show_images_no_results() {
+    let mut server = Server::new_async().await;
+    let m = server
+        .mock("GET", "/search/shows?q=Unknown")
+        .with_status(200)
+        .with_body("[]")
+        .create_async()
+        .await;
+
+    let client = TvMazeClient::with_base_url(server.url());
+    let result = client.fetch_show_images("Unknown").await;
+
+    assert!(result.is_none());
+    m.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_fetch_show_images_empty_query() {
+    let client = TvMazeClient::new();
+    let result = client.fetch_show_images("   ").await;
+    assert!(result.is_none());
+}
+
+#[tokio::test]
+async fn test_fetch_show_images_network_error() {
+    let mut server = Server::new_async().await;
+    let m = server
+        .mock("GET", "/search/shows?q=Fail")
+        .with_status(500)
+        .create_async()
+        .await;
+
+    let client = TvMazeClient::with_base_url(server.url());
+    let result = client.fetch_show_images("Fail").await;
+
+    assert!(result.is_none());
+    m.assert_async().await;
 }

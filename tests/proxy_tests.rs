@@ -405,3 +405,28 @@ fn test_rewrite_url() {
     assert_eq!(data.url, "https://apple.com/video.ts");
     assert!(data.headers.is_none());
 }
+
+#[test]
+fn test_rewrite_m3u8_invalid_url() {
+    let m3u8_content = "#EXTM3U\nsegment1.ts\n";
+    let proxy_base = "http://localhost:7000";
+    let invalid_url = "not-a-url";
+
+    let rewritten = proxy::rewrite_m3u8(m3u8_content, proxy_base, invalid_url, None);
+
+    assert_eq!(rewritten, m3u8_content);
+}
+
+#[test]
+fn test_rewrite_url_invalid_relative() {
+    use iptv_nz_addon_rust::proxy::rewrite_url;
+    use url::Url;
+
+    let base = Url::parse("https://example.com/").unwrap();
+    let proxy_base = "http://localhost:7000";
+    let invalid_relative = "https://:80"; // Fails parsing as absolute and join
+
+    let result = rewrite_url(invalid_relative, &base, proxy_base, None);
+
+    assert_eq!(result, invalid_relative);
+}

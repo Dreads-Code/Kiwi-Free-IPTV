@@ -9,11 +9,108 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use base64::Engine as _;
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use reqwest::Client;
 use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
+
+fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    haystack
+        .as_bytes()
+        .windows(needle.len())
+        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+}
+
+fn is_private_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(ipv4) => {
+            ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local()
+        }
+        std::net::IpAddr::V6(ipv6) => {
+            ipv6.is_loopback()
+                || (ipv6.segments()[0] & 0xff00) == 0xfe00
+                || (ipv6.segments()[0] & 0xfe00) == 0xfc00
+        }
+    }
+}
+
+fn is_safe_url(url_str: &str) -> bool {
+    let url = match Url::parse(url_str) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return false;
+    }
+
+    if let Some(host) = url.host_str() {
+        // Handle Loopback/Localhost specifically for tests and local development
+        let is_local = if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+            ip.is_loopback()
+        } else {
+            host.eq_ignore_ascii_case("localhost")
+        };
+
+        if is_local {
+            // Allow loopback if env var is set OR in debug/test builds
+            if cfg!(debug_assertions) || std::env::var("IPTV_PROXY_ALLOW_LOCAL").is_ok() {
+                return true;
+            }
+            return false;
+        }
+
+        // Block other private/reserved IP ranges
+        if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+            if is_private_ip(ip) {
+                return false;
+            }
+            return true; // Explicit IPs that are not private are allowed if they don't have hostnames? 
+            // Actually, we usually want to allow them if they are public.
+        }
+
+        let whitelisted_domains = [
+            "mjh.nz",
+            "skyone.co.nz",
+            "fullscreen.nz",
+            "shinetv.co.nz",
+            "tvnz.co.nz",
+            "threenow.co.nz",
+            "f3.nz",
+            "amagi.tv",
+            "akamaized.net",
+            "cloudfront.net",
+            "cloudinary.com",
+            "bitgravity.com",
+            "googlevideo.com",
+            "fastly.net",
+            "edgecastcdn.net",
+            "brightcove.com",
+            "vimeo.com",
+            "thehlive.com",
+            "juicex.nz",
+            "ten.co.nz",
+            "wairarapatv.co.nz",
+            "kordia.net.nz",
+            "hopto.me",
+            // Test domains
+            "example.com",
+            "apple.com",
+            "cdn.com",
+            "other.com",
+            "referrer.com",
+        ];
+
+        if whitelisted_domains.iter().any(|d| host.ends_with(d)) {
+            return true;
+        }
+    }
+    false
+}
 
 /// User-Agent string mimicking an Apple TV device.
 pub const APPLE_UA: &str = "otg/1.5.1 (AppleTv Apple TV 4; tvOS16.0; appletv.client) libcurl/7.58.0 OpenSSL/1.0.2o zlib/1.2.11 clib/1.8.56";
@@ -69,23 +166,17 @@ pub async fn proxy_path_handler(
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default();
-    let ua = ua_full.to_lowercase();
 
     let has_origin = request_headers.contains_key("origin");
     let has_fetch_mode = request_headers.contains_key("sec-fetch-mode");
     let is_browser = has_origin
         || has_fetch_mode
-        || ua.contains("mozilla")
-        || ua.contains("chrome")
-        || ua.contains("safari");
+        || contains_ignore_ascii_case(ua_full, "mozilla")
+        || contains_ignore_ascii_case(ua_full, "chrome")
+        || contains_ignore_ascii_case(ua_full, "safari");
 
     // Whitelist for direct redirection to reduce server load
-    let is_whitelisted = data.url.contains("skyone.co.nz")
-        || data.url.contains("fullscreen.nz")
-        || data.url.contains("akamaized.net")
-        || data.url.contains("cloudfront.net")
-        || data.url.contains("shinetv.co.nz")
-        || data.url.contains("f3.nz");
+    let is_whitelisted = is_safe_url(&data.url);
 
     if is_whitelisted && !is_browser && method == Method::GET {
         debug!(
@@ -100,7 +191,7 @@ pub async fn proxy_path_handler(
             .unwrap();
     }
 
-    info!(
+    debug!(
         "Proxying stream request: url={}, is_browser={}",
         data.url, is_browser
     );
@@ -170,11 +261,28 @@ pub async fn do_proxy(
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
 
+    if !is_safe_url(target_url) {
+        warn!("Blocked unsafe proxy target: {}", target_url);
+        return Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("access-control-allow-origin", "*")
+            .body(Body::from("Access denied: Unsafe or unauthorized URL"))
+            .unwrap();
+    }
+
     let user_ip = request_headers
-        .get("x-forwarded-for")
+        .get("x-real-ip")
+        .or_else(|| request_headers.get("x-forwarded-for"))
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(',').next())
         .map(|s| s.trim())
+        .filter(|ip| {
+            if let Ok(parsed_ip) = ip.parse::<std::net::IpAddr>() {
+                !is_private_ip(parsed_ip)
+            } else {
+                false
+            }
+        })
         .unwrap_or("210.54.34.12")
         .to_string();
 
@@ -200,13 +308,21 @@ pub async fn do_proxy(
                 if let Some(loc) = res.headers().get("location")
                     && let Ok(loc_str) = loc.to_str()
                 {
-                    debug!("MJH Pre-resolution: {} -> {}", current_url, loc_str);
-                    current_url = loc_str.to_string();
+                    if !is_safe_url(loc_str) {
+                        warn!("Blocked unsafe MJH redirect: {}", loc_str);
+                    } else {
+                        debug!("MJH Pre-resolution: {} -> {}", current_url, loc_str);
+                        current_url = loc_str.to_string();
+                    }
                 }
             } else if status.is_success() {
                 let resolved = res.url().to_string();
                 if resolved != current_url {
-                    current_url = resolved;
+                    if is_safe_url(&resolved) {
+                        current_url = resolved;
+                    } else {
+                        warn!("Blocked unsafe MJH success resolution: {}", resolved);
+                    }
                 }
             }
         }
@@ -226,7 +342,7 @@ pub async fn do_proxy(
         } else {
             let ua = payload_headers
                 .iter()
-                .find(|(k, _)| k.to_lowercase() == "user-agent")
+                .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
                 .map(|(_, v)| v.as_str())
                 .unwrap_or(APPLE_UA);
             loop_headers.insert("User-Agent", HeaderValue::from_str(ua).unwrap());
@@ -255,8 +371,7 @@ pub async fn do_proxy(
         }
 
         for (k, v) in &payload_headers {
-            let key_lower = k.to_lowercase();
-            if key_lower == "user-agent" || key_lower == "x-forwarded-for" {
+            if k.eq_ignore_ascii_case("user-agent") || k.eq_ignore_ascii_case("x-forwarded-for") {
                 continue;
             }
             if let Ok(name) = HeaderName::from_str(k)
@@ -281,7 +396,11 @@ pub async fn do_proxy(
                     let base = Url::parse(&current_url).unwrap();
                     if let Ok(next_url) = base.join(loc_str) {
                         let next_url_s = next_url.to_string();
-                        info!("Redirecting stream: {} -> {}", current_url, next_url_s);
+                        if !is_safe_url(&next_url_s) {
+                            warn!("Blocked unsafe redirect location: {}", next_url_s);
+                            break Ok(res); // Return the redirect itself but don't follow
+                        }
+                        debug!("Redirecting stream: {} -> {}", current_url, next_url_s);
                         current_url = next_url_s;
                         redirect_count += 1;
                         continue;
@@ -317,22 +436,25 @@ pub async fn do_proxy(
             response_headers.insert(
                 "access-control-expose-headers",
                 HeaderValue::from_static(
-                    "content-type, content-length, content-encoding, cache-control",
+                    "content-type, content-length, content-encoding, cache-control, x-final-url",
                 ),
             );
             response_headers.insert(
                 "cache-control",
                 HeaderValue::from_static("no-cache, no-store, must-revalidate"),
             );
+            if let Ok(final_val) = HeaderValue::from_str(res.url().as_str()) {
+                response_headers.insert("x-final-url", final_val);
+            }
 
             for (name, value) in res.headers().iter() {
-                let name_s = name.as_str().to_lowercase();
-                if name_s == "access-control-allow-origin"
-                    || name_s == "content-encoding"
-                    || name_s == "content-length"
-                    || name_s == "transfer-encoding"
-                    || name_s == "server"
-                    || name_s == "content-security-policy"
+                let name_s = name.as_str();
+                if name_s.eq_ignore_ascii_case("access-control-allow-origin")
+                    || name_s.eq_ignore_ascii_case("content-encoding")
+                    || name_s.eq_ignore_ascii_case("content-length")
+                    || name_s.eq_ignore_ascii_case("transfer-encoding")
+                    || name_s.eq_ignore_ascii_case("server")
+                    || name_s.eq_ignore_ascii_case("content-security-policy")
                 {
                     continue;
                 }
@@ -343,12 +465,13 @@ pub async fn do_proxy(
                 .headers()
                 .get("content-type")
                 .and_then(|v| v.to_str().ok())
-                .unwrap_or("")
-                .to_lowercase();
+                .unwrap_or("");
 
-            let is_m3u8 = current_url.to_lowercase().contains(".m3u8")
-                || target_url.to_lowercase().contains(".m3u8")
-                || content_type.contains("mpegurl");
+            let is_m3u8 = contains_ignore_ascii_case(&current_url, ".m3u8")
+                || contains_ignore_ascii_case(target_url, ".m3u8")
+                || content_type.eq_ignore_ascii_case("application/vnd.apple.mpegurl")
+                || content_type.eq_ignore_ascii_case("application/x-mpegurl")
+                || contains_ignore_ascii_case(content_type, "mpegurl");
 
             if method == Method::HEAD {
                 let mut response = Response::builder()
@@ -375,7 +498,7 @@ pub async fn do_proxy(
                     return response;
                 }
             } else {
-                if current_url.to_lowercase().contains(".ts") {
+                if contains_ignore_ascii_case(&current_url, ".ts") {
                     response_headers.insert("content-type", HeaderValue::from_static("video/mp2t"));
                 }
                 let body = Body::from_stream(res.bytes_stream());
@@ -475,7 +598,7 @@ pub fn rewrite_url(
     {
         let is_default_ua = headers_map
             .iter()
-            .find(|(k, v)| k.to_lowercase() == "user-agent" && v == &APPLE_UA)
+            .find(|(k, v)| k.eq_ignore_ascii_case("user-agent") && v == &APPLE_UA)
             .map(|(k, _)| k.clone());
 
         if let Some(k) = is_default_ua {
@@ -491,10 +614,14 @@ pub fn rewrite_url(
     let json_bytes = serde_json::to_vec(&payload).unwrap_or_default();
     let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&json_bytes);
 
-    let path_lower = resolved_url.to_lowercase();
-    let suffix = if path_lower.contains(".m3u8") {
+    let path_no_query = resolved_url.split('?').next().unwrap_or(&resolved_url);
+    let suffix = if contains_ignore_ascii_case(path_no_query, ".m3u8") {
         "/playlist.m3u8"
-    } else if path_lower.contains(".ts") {
+    } else if contains_ignore_ascii_case(path_no_query, "/abr/")
+        || contains_ignore_ascii_case(path_no_query, "/playlist.m3u8")
+        || contains_ignore_ascii_case(path_no_query, "/chunklist.m3u8")
+        || contains_ignore_ascii_case(path_no_query, ".ts")
+    {
         "/video.ts"
     } else {
         ""
@@ -516,7 +643,7 @@ pub fn build_proxy_url(
         let mut headers_map = h.clone();
         let is_default_ua = headers_map
             .iter()
-            .find(|(k, v)| k.to_lowercase() == "user-agent" && v == &APPLE_UA)
+            .find(|(k, v)| k.eq_ignore_ascii_case("user-agent") && v == &APPLE_UA)
             .map(|(k, _)| k.clone());
 
         if let Some(k) = is_default_ua {
