@@ -136,9 +136,9 @@ pub fn build_router() -> Router {
 async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
     let mut manifest = Manifest {
         id: "stremio_iptv_id:nz".to_string(),
-        version: semver::Version::new(1, 0, 0),
+        version: semver::Version::new(1, 1, 0),
         name: "New Zealand TV".to_string(),
-        description: Some("NZ TV channels with EPG data, show posters, and metadata. Derived from publicly available sources.".to_string()),
+        description: Some("Free-to-air New Zealand TV that provides rich metadata, show posters, IMDb ratings, genres, and age classifications. Huge thanks to https://www.matthuisman.nz/".to_string()),
         id_prefixes: Some(vec![
             "stremio_iptv_id:".to_string(), 
             "stremio_iptv_id:mjh-".to_string(),

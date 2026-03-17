@@ -1,6 +1,6 @@
 {
     "id": "kiwi-free-iptv",
-    "version": "0.0.2",
+    "version": "1.1.0",
     "name": "Kiwi Free IPTV",
     "description": "Free-to-air New Zealand TV that provides rich metadata, show posters, IMDb ratings, genres, and age classifications. Huge thanks to https://www.matthuisman.nz/",
     "logo": "/logo.png",
