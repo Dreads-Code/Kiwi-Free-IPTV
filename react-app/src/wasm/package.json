@@ -1,0 +1,15 @@
+{
+  "name": "iptv-nz-addon-rust",
+  "type": "module",
+  "version": "1.0.0",
+  "files": [
+    "iptv_nz_addon_rust_bg.wasm",
+    "iptv_nz_addon_rust.js",
+    "iptv_nz_addon_rust.d.ts"
+  ],
+  "main": "iptv_nz_addon_rust.js",
+  "types": "iptv_nz_addon_rust.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
