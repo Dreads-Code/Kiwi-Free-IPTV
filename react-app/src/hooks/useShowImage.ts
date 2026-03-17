@@ -1,63 +1,21 @@
 import { useState, useEffect } from "react";
 import { Programme, Channel } from "../types";
+import {
+  clean_show_title,
+  process_icon_url,
+} from "../wasm/iptv_nz_addon_rust.js";
 
-/**
- * Processes an EPG icon URL to fix common issues and validate its format.
- * This is a lightweight version for the frontend; the backend also performs this validation.
- * @param url The raw icon URL from the EPG
- * @returns A validated/fixed URL or undefined
- */
-const processEpgIconUrl = (url: string | undefined): string | undefined => {
-  if (!url) return undefined;
-
-  let processedUrl = url;
-
-  // Ensure HTTPS/HTTP only
-  if (
-    !processedUrl.startsWith("https://") &&
-    !processedUrl.startsWith("http://")
-  ) {
-    return undefined;
-  }
-
-  if (processedUrl.startsWith("http://")) {
-    processedUrl = processedUrl.replace("http://", "https://");
-  }
-
-  // Fix placeholders
-  if (processedUrl.includes("cdn.fullscreen.nz")) {
-    const isLandscape =
-      processedUrl.includes("Spotlight") || processedUrl.includes("Banner");
-    processedUrl = processedUrl
-      .replaceAll("[height]", isLandscape ? "338" : "450")
-      .replaceAll("[width]", isLandscape ? "600" : "300");
-  }
-
-  try {
-    const parsed = new URL(processedUrl);
-    const pathname = parsed.pathname.toLowerCase();
-    const search = parsed.search.toLowerCase();
-    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"];
-
-    const isImagePath = imageExtensions.some((ext) => pathname.endsWith(ext));
-    const isImageQuery = imageExtensions.some(
-      (ext) => search.includes(ext.substring(1)) || search.includes("format="),
-    );
-    const isTrustedCdn = processedUrl.includes("cdn.fullscreen.nz");
-
-    if (!isImagePath && !isImageQuery && !isTrustedCdn) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  return processedUrl;
-};
+// Global cache for in-flight requests to prevent duplicate searches
+const inflightRequests = new Map<
+  string,
+  Promise<{ poster: string | null; banner: string | null } | null>
+>();
 
 /**
  * A custom hook to fetch a TV show's poster and banner images.
- * It prioritizes the icon provided in the EPG data and falls back to our Rust backend's enrichment endpoint.
+ * It prioritizes the icon provided in the EPG data and falls back to standalone enrichment.
+ * Enrichment is performed locally in the browser using the WASM engine for title logic
+ * and the backend /api/fetch byte-pipe for network access.
  * @param programme The current programme object
  * @param channel The current channel object
  * @returns An object containing posterUrl, bannerUrl, and loading state
@@ -68,7 +26,11 @@ export const useProgramImage = (
 ) => {
   const lowerId = channel?.id.toLowerCase() ?? "";
   const forceEnrichment = lowerId.includes("ptmb") || lowerId.includes("ptgn");
-  const initialEpgIcon = processEpgIconUrl(programme?.icon);
+
+  // Use the WASM engine to process the EPG icon locally
+  const initialEpgIcon = programme?.icon
+    ? process_icon_url(programme.icon) || undefined
+    : undefined;
 
   // Determine if we should use the EPG icon
   const shouldUseEpg = !!(initialEpgIcon && !forceEnrichment);
@@ -90,25 +52,114 @@ export const useProgramImage = (
     }
 
     let isMounted = true;
-    setLoading(true);
 
     const enrichImage = async () => {
       try {
-        const response = await fetch(
-          `/api/image/${encodeURIComponent(programme.title)}`,
-        );
-        if (!response.ok) throw new Error("Failed to fetch");
-        const images = await response.json();
+        // 1. Clean title using WASM engine first - this is our true identity
+        const cleanedTitle = clean_show_title(programme.title);
+        if (!cleanedTitle) return;
 
-        if (isMounted) {
+        const cacheKey = `tvmaze_v2_${cleanedTitle.toLowerCase()}`;
+
+        // 2. Check LocalStorage persistent cache
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (isMounted) {
+              setFetchedData({
+                title: programme.title,
+                poster: parsed.poster,
+                banner: parsed.banner,
+              });
+            }
+            return;
+          } catch {
+            localStorage.removeItem(cacheKey);
+          }
+        }
+
+        // 3. Check for an in-flight duplicate request
+        if (inflightRequests.has(cacheKey)) {
+          setLoading(true);
+          const result = await inflightRequests.get(cacheKey);
+          if (isMounted && result) {
+            setFetchedData({
+              title: programme.title,
+              poster: result.poster,
+              banner: result.banner,
+            });
+          }
+          setLoading(false);
+          return;
+        }
+
+        setLoading(true);
+
+        // 4. Create new enrichment promise
+        const enrichmentPromise = (async () => {
+          try {
+            // Search TVMaze via Byte-Pipe
+            const searchUrl = `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(cleanedTitle)}`;
+            const searchRes = await fetch(
+              `/api/fetch?url=${encodeURIComponent(searchUrl)}`,
+            );
+            if (!searchRes.ok) throw new Error("Search failed");
+
+            const searchData = await searchRes.json();
+            if (!searchData || searchData.length === 0) {
+              return { poster: null, banner: null };
+            }
+
+            const show = searchData[0].show;
+            const showId = show.id;
+
+            let poster = show.image?.original || show.image?.medium || null;
+            let banner = null;
+
+            // Fetch additional assets if needed
+            const assetsUrl = `https://api.tvmaze.com/shows/${showId}/images`;
+            const assetsRes = await fetch(
+              `/api/fetch?url=${encodeURIComponent(assetsUrl)}`,
+            );
+            if (assetsRes.ok) {
+              const assets = await assetsRes.json();
+              for (const img of assets) {
+                if (!banner && img.type === "banner") {
+                  banner = img.resolutions?.original?.url || null;
+                }
+                if (img.type === "poster" && img.main) {
+                  poster = img.resolutions?.original?.url || poster;
+                }
+              }
+            }
+
+            return { poster, banner };
+          } catch (err) {
+            console.warn("[useProgramImage] Fetch failed:", err);
+            return null;
+          }
+        })();
+
+        // Track the promise so others can wait for it
+        inflightRequests.set(cacheKey, enrichmentPromise);
+
+        const result = await enrichmentPromise;
+
+        // Remove from inflight once done
+        inflightRequests.delete(cacheKey);
+
+        if (isMounted && result) {
           setFetchedData({
             title: programme.title,
-            poster: images?.poster ?? null,
-            banner: images?.banner ?? null,
+            poster: result.poster,
+            banner: result.banner,
           });
+          // Save to persistent cache
+          localStorage.setItem(cacheKey, JSON.stringify(result));
         }
       } catch (error) {
-        console.warn("[useProgramImage] Enrichment failed:", error);
+        console.warn("[useProgramImage] Standalone enrichment failed:", error);
       } finally {
         if (isMounted) {
           setLoading(false);

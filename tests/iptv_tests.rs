@@ -252,7 +252,7 @@ async fn test_fetch_data_cache_miss_success() {
 
     // Assert caches are populated
     assert!(state.stream_cache.get("m3u8").await.is_some());
-    assert!(state.epg_cache.get("epg_struct").await.is_some());
+    assert!(state.epg_cache.get("epg_text").await.is_some());
     assert!(state.channel_cache.get("data").await.is_some());
     assert!(state.channel_map_cache.get("data").await.is_some());
 }

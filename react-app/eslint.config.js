@@ -7,7 +7,7 @@ import unicorn from "eslint-plugin-unicorn";
 import sonarjs from "eslint-plugin-sonarjs";
 
 export default tseslint.config(
-  { ignores: ["dist", "dev-dist"] },
+  { ignores: ["dist", "dev-dist", "src/wasm"] },
   {
     extends: [
       js.configs.recommended,

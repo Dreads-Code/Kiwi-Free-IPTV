@@ -3,29 +3,7 @@
  * Centralizes the logic used in both the frontend VideoPlayer and server-side redirect/proxy APIs.
  */
 
-const ALLOWED_DOMAINS = [
-  "i.mjh.nz",
-  "d38thhtbc3g3fc.cloudfront.net",
-  "d47743dknc7xq.cloudfront.net",
-  "dfecjp0pnemzw.cloudfront.net",
-  "info.shinetv.co.nz",
-  "shinetv.co.nz",
-  "kordia.net.nz",
-  "akamaized.net",
-  "brightcove.com",
-  "tvnz.co.nz",
-  "threenow.co.nz",
-  "discovery.com",
-  "api.tvmaze.com",
-  "www.tvmaze.com",
-  "raw.githubusercontent.com",
-  "objects.githubusercontent.com",
-  "github.com",
-  "cloudfront.net",
-  "fullscreen.nz",
-  "tulix.tv",
-  "vimeo.com",
-];
+import { is_safe_proxy_url } from "../wasm/iptv_nz_addon_rust.js";
 
 const HIGH_CONFIDENCE_DIRECT_DOMAINS: string[] = [
   "fullscreen.nz",
@@ -35,19 +13,15 @@ const HIGH_CONFIDENCE_DIRECT_DOMAINS: string[] = [
 ];
 
 /**
- * Validates if a URL is allowed based on the hostname allowlist.
+ * Validates if a URL is allowed based on the Rust engine's safety rules.
+ * Supports dependency injection for testing.
  */
-export const isAllowedUrl = (url: string | URL): boolean => {
-  try {
-    const urlObj = typeof url === "string" ? new URL(url) : url;
-    const hostname = urlObj.hostname.toLowerCase();
-
-    return ALLOWED_DOMAINS.some(
-      (allowed) => hostname === allowed || hostname.endsWith("." + allowed),
-    );
-  } catch {
-    return false;
-  }
+export const isAllowedUrl = (
+  url: string | URL,
+  checkFn: (u: string) => boolean = is_safe_proxy_url,
+): boolean => {
+  const urlStr = typeof url === "string" ? url : url.toString();
+  return checkFn(urlStr);
 };
 
 /**
@@ -115,7 +89,18 @@ export const needsDirectPlay = (url: string): boolean => {
     urlLower.includes("tulix.tv") ||
     urlLower.includes("shinetv.co.nz") ||
     urlLower.includes("f3.nz") ||
-    urlLower.includes("vimeo.com")
+    urlLower.includes("vimeo.com") ||
+    urlLower.includes("amagi.tv") ||
+    urlLower.includes("edgecastcdn.net") ||
+    urlLower.includes("fastly.net") ||
+    urlLower.includes("thehlive.com") ||
+    urlLower.includes("juicex.nz") ||
+    urlLower.includes("ten.co.nz") ||
+    urlLower.includes("wairarapatv.co.nz") ||
+    urlLower.includes("kordia.net.nz") ||
+    urlLower.includes("hopto.me") ||
+    urlLower.includes("brightcove.com") ||
+    urlLower.includes("googlevideo.com")
   );
 };
 

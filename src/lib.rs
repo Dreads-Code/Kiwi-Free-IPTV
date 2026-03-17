@@ -5,6 +5,10 @@ pub mod iptv;
 pub mod proxy;
 pub mod tvmaze;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
+#[cfg(not(target_arch = "wasm32"))]
 use axum::{
     Router,
     extract::{Path, State},
@@ -12,13 +16,20 @@ use axum::{
     response::{IntoResponse, Json, Redirect},
     routing::get,
 };
+#[cfg(not(target_arch = "wasm32"))]
 use log::{debug, info};
+#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use stremio_core::types::addon::{Manifest, ManifestCatalog, ManifestResource};
+#[cfg(not(target_arch = "wasm32"))]
 use tower_http::cors::CorsLayer;
+#[cfg(not(target_arch = "wasm32"))]
 use url::Url;
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Shared application state containing caches and external service clients.
 #[derive(Clone)]
 pub struct AppState {
@@ -40,6 +51,7 @@ pub struct AppState {
     pub epg_url: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Constructs and configures the Axum Router for the addon.
 /// Includes routes for the manifest, proxy, and Stremio resources.
 pub fn build_router() -> Router {
@@ -102,7 +114,7 @@ pub fn build_router() -> Router {
         .route("/logo.png", get(logo_handler))
         .route("/background.png", get(background_handler))
         .route("/api/data", get(data_handler))
-        .route("/api/image/{title}", get(image_enrichment_handler))
+        .route("/api/fetch", get(fetch_pass_through_handler))
         // Stremio resource routes
         .route("/{resource}/{type}/{id}/{extra}", get(resource_handler))
         .route("/{resource}/{type}/{id}", get(resource_handler))
@@ -118,6 +130,7 @@ pub fn build_router() -> Router {
         .with_state(state)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Handler for the Stremio manifest.json.
 /// Populates the manifest with dynamic logo and background URLs.
 async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
@@ -170,6 +183,7 @@ async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
     (response_headers, Json(manifest))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Serves the addon logo.
 async fn logo_handler() -> impl IntoResponse {
     let bytes = include_bytes!("../logo.png");
@@ -179,6 +193,7 @@ async fn logo_handler() -> impl IntoResponse {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Serves the addon background.
 async fn background_handler() -> impl IntoResponse {
     let bytes = include_bytes!("../background.png");
@@ -188,6 +203,7 @@ async fn background_handler() -> impl IntoResponse {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Returns the raw channel data, primarily for internal dashboard use.
 async fn data_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut response_headers = HeaderMap::new();
@@ -209,41 +225,60 @@ async fn data_handler(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-/// Enriches a show title with artwork from TVMaze.
-async fn image_enrichment_handler(
-    State(state): State<AppState>,
-    Path(params): Path<HashMap<String, String>>,
+#[cfg(not(target_arch = "wasm32"))]
+/// Pass-through proxy that adds CORS headers to any requested URL.
+/// Used as a fallback for browser-side WASM fetches.
+async fn fetch_pass_through_handler(
+    axum::extract::Query(query): axum::extract::Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let title = params.get("title").cloned().unwrap_or_default();
-    let title = urlencoding::decode(&title)
-        .unwrap_or(std::borrow::Cow::Borrowed(&title))
-        .to_string();
-
-    let mut response_headers = HeaderMap::new();
-    response_headers.insert(
-        "Cache-Control",
-        "max-age=86400, stale-while-revalidate=43200, public"
-            .parse()
-            .unwrap(),
-    );
-
-    if let Some(cached) = state.image_cache.get(&title).await {
-        return (response_headers, Json(cached)).into_response();
+    let url = query.get("url").cloned().unwrap_or_default();
+    if url.is_empty() {
+        return (StatusCode::BAD_REQUEST, "Missing url parameter").into_response();
     }
 
-    if let Some(enriched) = state.tvmaze_client.fetch_show_images(&title).await {
-        state.image_cache.insert(title, enriched.clone()).await;
-        (response_headers, Json(enriched)).into_response()
-    } else {
-        let empty = tvmaze::ShowImages {
-            poster: None,
-            banner: None,
-        };
-        state.image_cache.insert(title, empty.clone()).await;
-        (response_headers, Json(empty)).into_response()
+    // Safety check: only allow known safe domains (like mjh.nz or github)
+    if !proxy::is_safe_url(&url) {
+        return (StatusCode::FORBIDDEN, "Unsafe URL").into_response();
+    }
+
+    let client = reqwest::Client::new();
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let status = res.status();
+            let mut headers = HeaderMap::new();
+            // Critical: Add CORS headers so the browser can read the response
+            headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
+            headers.insert(
+                "Access-Control-Allow-Methods",
+                "GET, OPTIONS".parse().unwrap(),
+            );
+
+            if let Some(ct) = res.headers().get("content-type") {
+                headers.insert("Content-Type", ct.clone());
+            }
+
+            let body = match res.bytes().await {
+                Ok(b) => b,
+                Err(e) => {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+                }
+            };
+
+            if cfg!(debug_assertions) {
+                log::info!(
+                    "[CORS-Proxy] Forwarding {} for frontend (Size: {:.2} KB)",
+                    url,
+                    body.len() as f64 / 1024.0
+                );
+            }
+
+            (status, headers, body).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Primary handler for Stremio resource requests (catalog, meta, stream).
 async fn resource_handler(
     State(state): State<AppState>,

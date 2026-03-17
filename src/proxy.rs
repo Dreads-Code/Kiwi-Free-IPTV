@@ -2,16 +2,25 @@
 //! This module provides the logic for proxying M3U8 and TS streams,
 //! handling MJH handshakes, surgical identity swapping, and M3U8 rewriting.
 
+#[cfg(not(target_arch = "wasm32"))]
 use axum::{
     body::Body,
     extract::{Path, Query},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
 };
+#[cfg(target_arch = "wasm32")]
+pub type HeaderMap = std::collections::HashMap<String, String>;
+
 use base64::Engine as _;
-use log::{debug, error, warn};
+
+#[cfg(not(target_arch = "wasm32"))]
+use log::{error, warn};
+
+#[cfg(not(target_arch = "wasm32"))]
 use reqwest::Client;
 use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::str::FromStr;
 use url::Url;
 
@@ -38,7 +47,7 @@ fn is_private_ip(ip: std::net::IpAddr) -> bool {
     }
 }
 
-fn is_safe_url(url_str: &str) -> bool {
+pub fn is_safe_url(url_str: &str) -> bool {
     let url = match Url::parse(url_str) {
         Ok(u) => u,
         Err(_) => return false,
@@ -97,6 +106,7 @@ fn is_safe_url(url_str: &str) -> bool {
             "wairarapatv.co.nz",
             "kordia.net.nz",
             "hopto.me",
+            "tvmaze.com",
             // Test domains
             "example.com",
             "apple.com",
@@ -131,6 +141,7 @@ pub struct ProxyPathData {
     pub headers: Option<HashMap<String, String>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Path-based proxy handler: `/proxy/{base64url-encoded JSON}`.
 /// Decodes the payload and handles stream redirection or proxying.
 pub async fn proxy_path_handler(
@@ -179,10 +190,12 @@ pub async fn proxy_path_handler(
     let is_whitelisted = is_safe_url(&data.url);
 
     if is_whitelisted && !is_browser && method == Method::GET {
-        debug!(
-            "Redirecting client directly to whitelisted URL: {}",
-            data.url
-        );
+        if cfg!(debug_assertions) {
+            log::info!(
+                "[Stremio-Direct] Redirecting client directly to safe CDN: {}",
+                data.url
+            );
+        }
         return Response::builder()
             .status(StatusCode::FOUND)
             .header("Location", &data.url)
@@ -191,10 +204,13 @@ pub async fn proxy_path_handler(
             .unwrap();
     }
 
-    debug!(
-        "Proxying stream request: url={}, is_browser={}",
-        data.url, is_browser
-    );
+    if cfg!(debug_assertions) {
+        log::info!(
+            "[Proxy] Forwarding request: url={}, is_browser={}",
+            data.url,
+            is_browser
+        );
+    }
 
     let headers_json = data
         .headers
@@ -203,6 +219,7 @@ pub async fn proxy_path_handler(
     do_proxy(method, &data.url, headers_json.as_deref(), &request_headers).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Handler for the legacy query-based proxy endpoint.
 pub async fn proxy_handler(
     method: Method,
@@ -218,6 +235,7 @@ pub async fn proxy_handler(
     .await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Determines the base URL of the current request.
 pub fn get_base_url(headers: &HeaderMap) -> String {
     let host = headers
@@ -235,6 +253,7 @@ pub fn get_base_url(headers: &HeaderMap) -> String {
     format!("{}://{}", protocol, host)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Executes the core proxy logic, including header injection and MJH handshake.
 pub async fn do_proxy(
     method: Method,
@@ -311,7 +330,9 @@ pub async fn do_proxy(
                     if !is_safe_url(loc_str) {
                         warn!("Blocked unsafe MJH redirect: {}", loc_str);
                     } else {
-                        debug!("MJH Pre-resolution: {} -> {}", current_url, loc_str);
+                        if cfg!(debug_assertions) {
+                            log::info!("[MJH-Handshake] Resolving: {} -> {}", current_url, loc_str);
+                        }
                         current_url = loc_str.to_string();
                     }
                 }
@@ -400,7 +421,9 @@ pub async fn do_proxy(
                             warn!("Blocked unsafe redirect location: {}", next_url_s);
                             break Ok(res); // Return the redirect itself but don't follow
                         }
-                        debug!("Redirecting stream: {} -> {}", current_url, next_url_s);
+                        if cfg!(debug_assertions) {
+                            log::info!("[Proxy-Redirect] {} -> {}", current_url, next_url_s);
+                        }
                         current_url = next_url_s;
                         redirect_count += 1;
                         continue;
@@ -593,6 +616,7 @@ pub fn rewrite_url(
     let mut payload_map = serde_json::Map::new();
     payload_map.insert("url".to_string(), serde_json::json!(resolved_url));
 
+    let mut has_custom_headers = false;
     if let Some(h) = headers_str
         && let Ok(mut headers_map) = serde_json::from_str::<HashMap<String, String>>(h)
     {
@@ -607,6 +631,24 @@ pub fn rewrite_url(
 
         if !headers_map.is_empty() {
             payload_map.insert("headers".to_string(), serde_json::json!(headers_map));
+            has_custom_headers = true;
+        }
+    }
+
+    // Bandwidth Optimization: If it's a safe URL/CDN and NO custom headers are needed,
+    // return the direct URL to offload transfer from Vercel to the destination CDN.
+    if !has_custom_headers && is_safe_url(&resolved_url) {
+        let path_no_query = resolved_url.split('?').next().unwrap_or(&resolved_url);
+        // We offload EVERYTHING except playlists (.m3u8).
+        // This covers .ts, .m4s, .aac, and even extensionless segments (like Al Jazeera).
+        if !contains_ignore_ascii_case(path_no_query, ".m3u8") {
+            if cfg!(debug_assertions) {
+                log::info!(
+                    "[Offload] Direct play offload for safe URL: {}",
+                    resolved_url
+                );
+            }
+            return resolved_url;
         }
     }
 

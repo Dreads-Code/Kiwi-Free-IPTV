@@ -2,7 +2,9 @@
 //! This module provides the client and utilities for fetching show artwork
 //! and cleaning show titles for reliable search results.
 
-use log::{debug, info, warn};
+use log::debug;
+#[cfg(not(target_arch = "wasm32"))]
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -15,23 +17,27 @@ pub struct ShowImages {
     pub banner: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeShowSearch {
     show: TvMazeShow,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeShow {
     id: u32,
     image: Option<TvMazeImageLinks>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeImageLinks {
     original: Option<String>,
     medium: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeImage {
     r#type: String,
@@ -39,22 +45,26 @@ struct TvMazeImage {
     resolutions: TvMazeResolutions,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeResolutions {
     original: TvMazeUrl,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Deserialize)]
 struct TvMazeUrl {
     url: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Client for interacting with the TVMaze API.
 pub struct TvMazeClient {
     client: reqwest::Client,
     base_url: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl TvMazeClient {
     /// Creates a new TVMaze client.
     pub fn new() -> Self {
@@ -65,12 +75,14 @@ impl TvMazeClient {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Default for TvMazeClient {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl TvMazeClient {
     /// Creates a new TVMaze client with a custom base URL (useful for testing).
     pub fn with_base_url(base_url: String) -> Self {

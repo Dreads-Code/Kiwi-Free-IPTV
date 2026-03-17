@@ -5,29 +5,28 @@ edition = "2024"
 
 [lib]
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "axum"
 path = "api/axum.rs"
+required-features = ["native"]
 
 [[bin]]
 name = "local"
 path = "src/local.rs"
+required-features = ["native"]
+
+[features]
+default = ["native"]
+native = ["vercel_runtime", "tokio", "axum", "axum-streams", "tower", "tower-http", "moka"]
 
 [dependencies]
-vercel_runtime = { version = "2", features = ["axum"] }
-tokio = { version = "1", features = ["full"] }
-hyper = { version = "1", features = ["full"] }
-axum = { version = "0.8" }
-axum-streams = { version = "0.24", features = ["json", "text"] }
-tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["cors"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls-native-roots"] }
 quick-xml = { version = "0.36", features = ["serialize"] }
 m3u8-rs = "6.0.0"
-moka = { version = "0.12", features = ["future"] }
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 env_logger = "0.11"
@@ -39,11 +38,26 @@ regex = "1.12.3"
 futures = "0.3"
 base64 = "0.22"
 
+# WASM Dependencies
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "console"] }
+getrandom = { version = "0.2", features = ["js"] }
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+vercel_runtime = { version = "2", features = ["axum"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+axum = { version = "0.8", optional = true }
+axum-streams = { version = "0.24", features = ["json", "text"], optional = true }
+tower = { version = "0.5", features = ["util"], optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+moka = { version = "0.12", features = ["future"], optional = true }
+
 [dev-dependencies]
 mockito = "1.5"
 http-body-util = "0.1"
-
-
 
 [profile.release]
 codegen-units = 1

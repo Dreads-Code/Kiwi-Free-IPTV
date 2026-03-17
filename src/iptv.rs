@@ -2,10 +2,16 @@
 //! This module handles fetching, parsing, and caching of M3U8 and EPG data,
 //! as well as formatting it for the Stremio Addon API.
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::AppState;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::tvmaze::{self, process_epg_icon_url};
-use log::{error, info, warn};
+
+use log::error;
+#[cfg(not(target_arch = "wasm32"))]
+use log::{info, warn};
 use quick_xml::de::from_str;
+#[cfg(not(target_arch = "wasm32"))]
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -88,6 +94,7 @@ pub struct ChannelMeta {
     pub http_headers: Option<HashMap<String, String>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Makes an HTTP GET request with a retry mechanism.
 /// Retries for both network errors and non-success HTTP status codes.
 pub async fn make_request(url: &str, retries: u32) -> Result<String, reqwest::Error> {
@@ -164,47 +171,18 @@ pub fn categorize_channel(name_lower: &str, _headers: &Option<HashMap<String, St
     "International".to_string()
 }
 
-/// Fetches and processes M3U8 and EPG data into a collection of `ChannelMeta`.
-/// Uses heavy caching to minimize external requests.
-pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn std::error::Error>> {
-    // Check if fully processed data is already cached
-    if let Some(data) = state.channel_cache.get("data").await {
-        return Ok(data);
-    }
-
-    // Fetch or use cached M3U8
-    let m3u8_text = if let Some(cached) = state.stream_cache.get("m3u8").await {
-        cached
-    } else {
-        info!("Refreshing M3U8 data...");
-        let text = make_request(&state.m3u8_url, 3).await?;
-        state
-            .stream_cache
-            .insert("m3u8".to_string(), text.clone())
-            .await;
-        text
-    };
-
-    // Fetch or use cached EPG
-    let epg: Tv = if let Some(cached) = state.epg_cache.get("epg_struct").await {
-        serde_json::from_str(&cached)?
-    } else {
-        info!("Refreshing EPG data...");
-        let epg_text = make_request(&state.epg_url, 3).await?;
-        let parsed_epg: Tv = match from_str(&epg_text) {
-            Ok(epg) => epg,
-            Err(e) => {
-                error!("Failed to parse EPG XML: {}", e);
-                Tv {
-                    channels: vec![],
-                    programmes: vec![],
-                }
+/// Core logic to parse M3U8 and EPG into consolidated ChannelMeta.
+/// This is platform-agnostic and can run in WASM.
+pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
+    let epg: Tv = match from_str(epg_text) {
+        Ok(epg) => epg,
+        Err(e) => {
+            error!("Failed to parse EPG XML: {}", e);
+            Tv {
+                channels: vec![],
+                programmes: vec![],
             }
-        };
-        if let Ok(json) = serde_json::to_string(&parsed_epg) {
-            state.epg_cache.insert("epg_struct".to_string(), json).await;
         }
-        parsed_epg
     };
 
     let mut epg_map = HashMap::new();
@@ -224,7 +202,6 @@ pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn st
     let mut current_name = None;
     let mut current_headers: HashMap<String, String> = HashMap::new();
 
-    // Parse the M3U8 playlist manually to extract custom attributes
     for line in m3u8_text.lines() {
         let line = line.trim();
         if line.starts_with("#EXTINF:") {
@@ -336,6 +313,47 @@ pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn st
             .then_with(|| a.name_lower.cmp(&b.name_lower))
     });
 
+    channels
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+/// Fetches and processes M3U8 and EPG data into a collection of `ChannelMeta`.
+/// Uses heavy caching to minimize external requests.
+pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn std::error::Error>> {
+    // Check if fully processed data is already cached
+    if let Some(data) = state.channel_cache.get("data").await {
+        return Ok(data);
+    }
+
+    // Fetch or use cached M3U8
+    let m3u8_text = if let Some(cached) = state.stream_cache.get("m3u8").await {
+        cached
+    } else {
+        info!("Refreshing M3U8 data...");
+        let text = make_request(&state.m3u8_url, 3).await?;
+        state
+            .stream_cache
+            .insert("m3u8".to_string(), text.clone())
+            .await;
+        text
+    };
+
+    // Fetch or use cached EPG
+    let epg_text = if let Some(cached) = state.epg_cache.get("epg_text").await {
+        cached
+    } else {
+        info!("Refreshing EPG data...");
+        let text = make_request(&state.epg_url, 3).await?;
+        state
+            .epg_cache
+            .insert("epg_text".to_string(), text.clone())
+            .await;
+        text
+    };
+
+    // Use consolidated parsing logic
+    let channels = parse_channels(&m3u8_text, &epg_text);
+
     // Populate caches
     let mut map = HashMap::new();
     for c in &channels {
@@ -364,6 +382,7 @@ pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn st
     Ok(channels)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Formats a channel's metadata for a Stremio response, including EPG data.
 /// Enriches metadata with artwork from TVMaze if applicable.
 pub async fn format_meta(
@@ -483,6 +502,7 @@ pub async fn format_meta(
     meta_obj
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Generates the catalog response for Stremio.
 pub async fn catalog(state: &AppState) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let channels = fetch_data(state).await?;
@@ -498,6 +518,7 @@ pub async fn catalog(state: &AppState) -> Result<serde_json::Value, Box<dyn std:
     Ok(serde_json::Value::Array(res))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Generates a single meta detail response for Stremio.
 pub async fn meta(
     state: &AppState,
@@ -524,6 +545,7 @@ pub async fn meta(
     ))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Generates the stream response for Stremio, applying MJH pre-resolution.
 pub async fn stream(
     state: &AppState,
