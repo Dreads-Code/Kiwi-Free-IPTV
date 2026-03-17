@@ -26,6 +26,10 @@
       "destination": "/api/axum"
     },
     {
+      "source": "/api/fetch",
+      "destination": "/api/axum"
+    },
+    {
       "source": "/ping",
       "destination": "/api/axum"
     },
