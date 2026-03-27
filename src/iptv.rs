@@ -396,11 +396,13 @@ pub async fn format_meta(
     let mut current_program = None;
     let now = now_str.as_str();
     // Binary search for the current programme (programmes are chronologically ordered)
-    let idx = channel.programmes.partition_point(|p| p.stop.as_str() <= now);
-    if let Some(p) = channel.programmes.get(idx) {
-        if p.start.as_str() <= now {
-            current_program = Some(p);
-        }
+    let idx = channel
+        .programmes
+        .partition_point(|p| p.stop.as_str() <= now);
+    if let Some(p) = channel.programmes.get(idx)
+        && p.start.as_str() <= now
+    {
+        current_program = Some(p);
     }
 
     let mut meta_obj = serde_json::json!({
@@ -599,13 +601,14 @@ pub async fn stream(
 
     let now = now_str.as_str();
     let mut show_title = "Live TV".to_string();
-    let idx = channel.programmes.partition_point(|p| p.stop.as_str() <= now);
-    if let Some(p) = channel.programmes.get(idx) {
-        if p.start.as_str() <= now {
-            if let Some(t) = &p.title {
-                show_title = t.to_string();
-            }
-        }
+    let idx = channel
+        .programmes
+        .partition_point(|p| p.stop.as_str() <= now);
+    if let Some(p) = channel.programmes.get(idx)
+        && p.start.as_str() <= now
+        && let Some(t) = &p.title
+    {
+        show_title = t.to_string();
     }
 
     if show_title == "Live TV"

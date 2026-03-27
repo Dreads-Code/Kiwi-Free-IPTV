@@ -21,3 +21,5 @@ iptv-nz-addon-rust/target/
 .DS_Store
 Thumbs.db
 .vercel
+.claude/
+

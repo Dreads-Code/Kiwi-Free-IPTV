@@ -1,11 +1,5 @@
 use axum::http::HeaderMap;
-use base64::Engine as _;
-use iptv_nz_addon_rust::proxy::{self, build_proxy_url, get_base_url};
-use mockito::Server;
-use serde::Deserialize;
-use std::collections::HashMap;
-
-use axum::http::HeaderMap;
+use axum::response::IntoResponse;
 use base64::Engine as _;
 use iptv_nz_addon_rust::proxy::{self, build_proxy_url, get_base_url};
 use mockito::Server;
@@ -149,22 +143,12 @@ fn test_rewrite_m3u8_logic() {
     assert!(rewritten.contains("https://cdn.com/seg2.ts"));
 
     // URI attribute in #EXT-X-KEY (key.bin -> https://example.com/key.bin)
+    // example.com is whitelisted and key.bin is not m3u8, so it's offloaded as a direct URL
     let key_line = lines
         .iter()
         .find(|&&l| l.contains("EXT-X-KEY"))
         .expect("Should find EXT-X-KEY line");
-    assert!(key_line.contains("URI=\"http://localhost:7000/proxy/"));
-
-    // Extract the URI from the key line
-    let key_uri_part = key_line
-        .split("URI=\"")
-        .nth(1)
-        .unwrap()
-        .split('"')
-        .next()
-        .unwrap();
-    let key_payload = decode_proxy_url(key_uri_part, proxy_base);
-    assert_eq!(key_payload.url, "https://example.com/key.bin");
+    assert!(key_line.contains("URI=\"https://example.com/key.bin\""));
 }
 
 #[test]
@@ -369,14 +353,12 @@ async fn test_do_proxy_m3u8_rewriting() {
         .unwrap();
     let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
 
-    // segment.ts is relative to playlist.m3u8 (on mock server localhost),
-    // but localhost is only whitelisted in debug/test or if IPTV_PROXY_ALLOW_LOCAL is set.
-    // In tests, cfg!(debug_assertions) is true, so it's safe.
-    // However, rewrite_url only does direct offload if is_safe_url is true.
-    // Let's check if it's being proxied or direct.
-    // If it's direct:
+    // segment.ts is relative to playlist.m3u8 on the mockito server (random port).
+    // In debug/test, loopback is whitelisted, so it's offloaded as a direct URL.
+    let server_url = server.url();
     assert!(
-        body_str.contains("http://127.0.0.1:7000/segment.ts")
+        body_str.contains(&format!("{}/segment.ts", server_url))
+            || body_str.contains("http://127.0.0.1:7000/segment.ts")
             || body_str.contains("http://localhost:7000/segment.ts")
             || body_str.contains("/proxy/")
     );
@@ -482,16 +464,17 @@ async fn test_proxy_path_handler_integration() {
 
     let res = proxy::proxy_path_handler(
         axum::http::Method::GET,
-        axum::extract::Path(encoded).into(),
+        axum::extract::Path(encoded),
         req.headers().clone(),
     )
     .await
     .into_response();
 
     use axum::http::StatusCode;
-    use http_body_util::BodyExt;
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = res.into_body().collect().await.unwrap().to_bytes();
-    assert_eq!(body, "#EXTM3U");
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(body.as_ref(), b"#EXTM3U\n");
 }

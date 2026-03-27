@@ -43,6 +43,10 @@ fn is_private_ip(ip: std::net::IpAddr) -> bool {
             ipv6.is_loopback()
                 || (ipv6.segments()[0] & 0xff00) == 0xfe00
                 || (ipv6.segments()[0] & 0xfe00) == 0xfc00
+                || ipv6
+                    .to_ipv4()
+                    .map(|ip| ip.is_private() || ip.is_loopback() || ip.is_link_local())
+                    .unwrap_or(false)
         }
     }
 }
@@ -355,48 +359,35 @@ pub async fn do_proxy(
     let res = loop {
         let is_mjh = current_url.contains("i.mjh.nz");
         let mut req_builder = client.request(upstream_method.clone(), &current_url);
-        let mut loop_headers = HeaderMap::new();
 
         // Surgical Identity Swap: Inject tactical headers based on target server.
         if is_mjh {
-            loop_headers.insert("User-Agent", HeaderValue::from_str(BROWSER_UA).unwrap());
+            req_builder = req_builder.header("User-Agent", BROWSER_UA);
         } else {
             let ua = payload_headers
                 .iter()
                 .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
                 .map(|(_, v)| v.as_str())
                 .unwrap_or(APPLE_UA);
-
-            if let Ok(ua_val) = HeaderValue::from_str(ua) {
-                loop_headers.insert("User-Agent", ua_val);
-            } else {
-                loop_headers.insert("User-Agent", HeaderValue::from_static(APPLE_UA));
-            }
+            let ua_val =
+                HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(APPLE_UA));
+            req_builder = req_builder.header("User-Agent", ua_val);
 
             if let Ok(ip_val) = HeaderValue::from_str(&user_ip) {
-                loop_headers.insert("X-Forwarded-For", ip_val);
+                req_builder = req_builder.header("X-Forwarded-For", ip_val);
             }
 
             if current_url.contains("shinetv.co.nz") {
-                loop_headers.insert(
-                    "Referer",
-                    HeaderValue::from_static("https://shinetv.co.nz/"),
-                );
+                req_builder = req_builder.header("Referer", "https://shinetv.co.nz/");
             } else if current_url.contains("fullscreen.nz") {
-                loop_headers.insert(
-                    "Referer",
-                    HeaderValue::from_static("https://www.threenow.co.nz/"),
-                );
+                req_builder = req_builder.header("Referer", "https://www.threenow.co.nz/");
             } else if current_url.contains("tvnz.co.nz") {
-                loop_headers.insert(
-                    "Referer",
-                    HeaderValue::from_static("https://www.tvnz.co.nz/"),
-                );
+                req_builder = req_builder.header("Referer", "https://www.tvnz.co.nz/");
             }
         }
 
         if let Some(val) = &range_header {
-            loop_headers.insert("Range", val.clone());
+            req_builder = req_builder.header("Range", val.clone());
         }
 
         for (k, v) in &payload_headers {
@@ -406,12 +397,8 @@ pub async fn do_proxy(
             if let Ok(name) = HeaderName::from_str(k)
                 && let Ok(value) = HeaderValue::from_str(v)
             {
-                loop_headers.insert(name, value);
+                req_builder = req_builder.header(name, value);
             }
-        }
-
-        for (k, v) in &loop_headers {
-            req_builder = req_builder.header(k, v);
         }
 
         match req_builder.send().await {

@@ -58,7 +58,10 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_clean_show_title() {
-        assert_eq!(clean_show_title("Documentary: NZ - S01E01"), "Documentary: NZ");
+        assert_eq!(
+            clean_show_title("Documentary: NZ - S01E01"),
+            "Documentary: NZ"
+        );
     }
 
     #[wasm_bindgen_test]

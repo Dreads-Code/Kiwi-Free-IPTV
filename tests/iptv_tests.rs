@@ -254,7 +254,13 @@ async fn test_fetch_data_cache_miss_success() {
     assert!(state.epg_cache.get("epg_text").await.is_some());
     assert!(state.channel_cache.get("data").await.is_some());
     // In production, we iterate and insert each channel ID into map cache
-    assert!(state.channel_map_cache.get("stremio_iptv_id:mjh-nz1").await.is_some());
+    assert!(
+        state
+            .channel_map_cache
+            .get("stremio_iptv_id:mjh-nz1")
+            .await
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -397,7 +403,10 @@ async fn test_meta_request() {
     }];
 
     for c in &channels {
-        state.channel_map_cache.insert(c.id.clone(), c.clone()).await;
+        state
+            .channel_map_cache
+            .insert(c.id.clone(), c.clone())
+            .await;
     }
     state
         .channel_cache
@@ -451,7 +460,10 @@ async fn test_stream_request() {
     }];
 
     for c in &channels {
-        state.channel_map_cache.insert(c.id.clone(), c.clone()).await;
+        state
+            .channel_map_cache
+            .insert(c.id.clone(), c.clone())
+            .await;
     }
     state
         .channel_cache
@@ -470,7 +482,7 @@ async fn test_stream_request() {
 fn test_parse_channels_pure() {
     let m3u8 = "#EXTM3U\n#EXTINF:-1 tvg-id=\"id1\",Name1\nhttp://stream1\n";
     let epg = r#"<tv><channel id="id1"><display-name>Name 1</display-name></channel></tv>"#;
-    
+
     let channels = iptv::parse_channels(m3u8, epg);
     assert_eq!(channels.len(), 1);
     assert_eq!(channels[0].id, "stremio_iptv_id:mjh-id1");
