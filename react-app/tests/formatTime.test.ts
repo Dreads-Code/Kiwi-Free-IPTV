@@ -12,11 +12,11 @@ describe("formatTime", () => {
   it("formats seconds into HH:MM:SS", () => {
     expect(formatTime(3600)).toBe("1:00:00");
     expect(formatTime(3661)).toBe("1:01:01");
-    expect(formatTime(36000)).toBe("10:00:00");
+    expect(formatTime(36_000)).toBe("10:00:00");
   });
 
   it("handles NaN by returning 00:00", () => {
-    expect(formatTime(NaN)).toBe("00:00");
+    expect(formatTime(Number.NaN)).toBe("00:00");
   });
 
   it("handles negative values by returning 00:00", () => {

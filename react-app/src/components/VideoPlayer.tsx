@@ -7,108 +7,15 @@ import React, {
 } from "react";
 import { X } from "lucide-react";
 
-import { Channel, EpgData, Programme } from "../types";
-import { useProgramImage } from "../hooks/useShowImage";
+import { Channel, EpgData } from "../types";
 import CustomVideoControls from "./CustomVideoControls";
+import NextUpCard from "./NextUpCard";
 import { findCurrentProgrammeIndex } from "../utils/programmeUtils";
-import {
-  applyProxyRules,
-  isProxiedUrl,
-  decodeProxyUrl,
-  resolveStreamUrl,
-  isHighConfidenceDirect,
-} from "../services/streamProxyService";
-
-// Minimal HLS Type Definitions to avoid 'any'
-interface HlsLevel {
-  height: number;
-  bitrate: number;
-}
-
-interface HlsSubtitleTrack {
-  lang?: string;
-  name?: string;
-}
-
-interface HlsSubtitleTracksUpdatedData {
-  subtitleTracks: HlsSubtitleTrack[];
-}
-
-interface HlsInstance {
-  destroy(): void;
-  loadSource(url: string): void;
-  attachMedia(video: HTMLVideoElement): void;
-  on(event: string, callback: (event: string, data: unknown) => void): void;
-  subtitleTrack: number;
-  currentLevel: number;
-  levels: HlsLevel[];
-  startLoad(): void;
-  recoverMediaError(): void;
-}
-
-interface HlsStatic {
-  new (config?: Record<string, unknown>): HlsInstance;
-  isSupported(): boolean;
-  Events: {
-    MANIFEST_PARSED: string;
-    MANIFEST_LOADED: string;
-    SUBTITLE_TRACKS_UPDATED: string;
-    ERROR: string;
-  };
-  ErrorTypes: {
-    NETWORK_ERROR: string;
-    MEDIA_ERROR: string;
-    OTHER_ERROR: string;
-  };
-}
-
-declare const Hls: HlsStatic;
-
-/**
- * Extended HTMLVideoElement to support experimental Remote Playback (Casting) APIs
- * as seen in modern browsers like Chrome and Safari.
- */
-interface RemotePlayback extends EventTarget {
-  watchAvailability(callback: (available: boolean) => void): Promise<number>;
-  cancelWatchAvailability(id?: number): Promise<void>;
-  prompt(): Promise<void>;
-  state: "connecting" | "connected" | "disconnected";
-}
-
-type HTMLVideoElementExtended = HTMLVideoElement & {
-  remote?: RemotePlayback;
-  webkitShowPlaybackTargetPicker?: () => void;
-};
-
-interface WebKitPlaybackTargetAvailabilityEvent extends Event {
-  availability: "available" | "not-available";
-}
-
-const NextUpCard = ({
-  programme,
-  channel,
-}: {
-  programme: Programme;
-  channel: Channel;
-}) => {
-  const { posterUrl } = useProgramImage(programme, channel);
-  if (!posterUrl) return null;
-  return (
-    <div className="animate-slide-in-up flex w-64 items-center overflow-hidden rounded-lg border border-white/20 bg-black/40 p-3 shadow-2xl backdrop-blur-xl">
-      <img
-        src={posterUrl}
-        alt={programme.title}
-        className="h-24 w-16 shrink-0 rounded-md object-cover"
-      />
-      <div className="ml-3 overflow-hidden">
-        <p className="text-xs text-gray-300">Next Up</p>
-        <p className="line-clamp-3 text-sm leading-tight font-bold text-white">
-          {programme.title}
-        </p>
-      </div>
-    </div>
-  );
-};
+import { resolveStreamUrl } from "../services/streamProxyService";
+import { useHlsPlayer } from "../hooks/useHlsPlayer";
+import { useControlsVisibility } from "../hooks/useControlsVisibility";
+import { useFullscreen } from "../hooks/useFullscreen";
+import { useNextUpCard } from "../hooks/useNextUpCard";
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -125,43 +32,23 @@ const VideoPlayer = ({
 }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
-  const controlsTimeoutRef = useRef<number | null>(null);
-  const hlsRef = useRef<HlsInstance | null>(null);
-  const effectiveStreamUrlRef = useRef<string>(streamUrl);
-  const retryCountRef = useRef<number>(0);
-  const MAX_RETRIES = 2;
-
-  useEffect(() => {
-    effectiveStreamUrlRef.current = streamUrl;
-  }, [streamUrl]);
-
-  const headersRef = useRef(channel.headers);
-  useEffect(() => {
-    headersRef.current = channel.headers;
-  }, [channel.headers]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isCastAvailable, setIsCastAvailable] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
+  const [isPipAvailable] = useState(
+    () => typeof document !== "undefined" && document.pictureInPictureEnabled,
+  );
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "error" | "info";
-  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const resolve = async () => {
       const url = await resolveStreamUrl(streamUrl, channel.headers);
-      if (!cancelled) {
-        setResolvedUrl(url);
-      }
+      if (!cancelled) setResolvedUrl(url);
     };
     void resolve();
     return () => {
@@ -169,18 +56,27 @@ const VideoPlayer = ({
     };
   }, [streamUrl, channel.headers]);
 
-  // Subtitle and Quality state
-  const [subtitleTracks, setSubtitleTracks] = useState<
-    { id: number; label: string }[]
-  >([]);
-  const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(-1);
-  const [qualities, setQualities] = useState<
-    { id: number; height: number; bitrate: number }[]
-  >([]);
-  const [currentQuality, setCurrentQuality] = useState(-1);
-  const [isPipAvailable] = useState(
-    () => typeof document !== "undefined" && document.pictureInPictureEnabled,
-  );
+  const {
+    subtitleTracks,
+    currentSubtitleTrack,
+    handleSubtitleChange,
+    qualities,
+    currentQuality,
+    handleQualityChange,
+    hlsError,
+    clearHlsError,
+  } = useHlsPlayer({
+    videoRef,
+    streamUrl,
+    resolvedUrl,
+    headers: channel.headers,
+  });
+
+  const { isControlsVisible, showControls, cancelAutoHide } =
+    useControlsVisibility(isPlaying);
+
+  const { isFullscreen, handleFullscreenToggle, isCastAvailable, handleCast } =
+    useFullscreen(playerContainerRef, videoRef);
 
   const { currentProgramme, nextProgramme } = useMemo(() => {
     const programmes = epg.get(channel.epg_id);
@@ -194,522 +90,43 @@ const VideoPlayer = ({
     };
   }, [channel.epg_id, epg]);
 
-  const [showNextUp, setShowNextUp] = useState(false);
-  const [prevProgramme, setPrevProgramme] = useState(currentProgramme);
+  const showNextUp = useNextUpCard(currentProgramme);
 
-  if (currentProgramme !== prevProgramme) {
-    setPrevProgramme(currentProgramme);
-    setShowNextUp(false);
-  }
-
-  // Toast Auto-hide
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  // HLS Logic
-  const handleManifestParsed = useCallback(() => {
-    // Defensive: wrap in requestAnimationFrame to avoid potential synchronous layout thrashing
-    // from immediate playback or state updates during the manifest parsed event.
-    requestAnimationFrame(() => {
-      if (videoRef.current) {
-        videoRef.current.play().catch((error: unknown) => {
-          const err = error as Error;
-          if (err.name === "AbortError") return;
-          console.error("[VideoPlayer] Play failed", error);
-        });
-      }
-
-      // Get qualities
-      const levels = hlsRef.current?.levels.map((level, index) => ({
-        height: level.height,
-        bitrate: level.bitrate,
-        id: index,
-      }));
-      if (levels) {
-        setQualities(levels);
-      }
-
-      // Explicitly turn off subtitles by default
-      if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
-    });
-  }, []);
-
-  const xhrSetup = useCallback(
-    (xhr: XMLHttpRequest, url: string) => {
-      // Only listen for headers on playlist requests to avoid spam/errors on segments
-      if (url.includes(".m3u8")) {
-        // Update effective URL to handle relative path resolution for future chunks
-        const onReadyStateChange = () => {
-          if (xhr.readyState === 4) {
-            let newEffectiveUrl: string | null;
-
-            // Try to decode the URL from our own established proxy format first (Rust proxy)
-            const decoded = decodeProxyUrl(xhr.responseURL || url);
-            if (decoded) {
-              newEffectiveUrl = decoded;
-            } else {
-              // Fallback: check legacy header or direct responseURL
-              try {
-                // Only try to read custom headers if it's our proxy to avoid "unsafe header" warnings
-                newEffectiveUrl = isProxiedUrl(xhr.responseURL || url)
-                  ? (xhr.getResponseHeader("X-Final-Url") ?? xhr.responseURL)
-                  : xhr.responseURL;
-              } catch {
-                newEffectiveUrl = xhr.responseURL;
-              }
-            }
-
-            if (
-              newEffectiveUrl &&
-              effectiveStreamUrlRef.current !== newEffectiveUrl
-            ) {
-              effectiveStreamUrlRef.current = newEffectiveUrl;
-            }
-            xhr.removeEventListener("readystatechange", onReadyStateChange);
-          }
-        };
-        xhr.addEventListener("readystatechange", onReadyStateChange);
-      }
-
-      // Since the Rust server rewrites manifests to use absolute proxy URLs,
-      // Hls.js will resolve future tracks against those proxy URLs automatically.
-      // We only need to intercept if it somehow escapes the proxy (e.g. legacy logic
-      // or edge cases where Hls.js falls back to local origin).
-      if (isProxiedUrl(url)) return;
-
-      const isLocalOrigin = url.startsWith(globalThis.location.origin);
-      if (isLocalOrigin) {
-        // ... (existing resolution logic is fine as a safety net)
-        try {
-          const urlObj = new URL(url);
-          const unwrapped =
-            decodeProxyUrl(effectiveStreamUrlRef.current) ??
-            effectiveStreamUrlRef.current;
-
-          const streamBaseUrl = unwrapped.slice(
-            0,
-            unwrapped.lastIndexOf("/") + 1,
-          );
-          const pathToResolve = urlObj.pathname.startsWith("/api/")
-            ? urlObj.pathname.slice(5)
-            : urlObj.pathname.slice(1);
-          const upstreamUrl = new URL(pathToResolve, streamBaseUrl).toString();
-
-          xhr.open(
-            "GET",
-            applyProxyRules(upstreamUrl, headersRef.current),
-            true,
-          );
-        } catch {
-          /* ignore */
-        }
-      }
-    },
-    [headersRef],
-  );
-
-  const handleHlsErrorRef =
-    useRef<(_event: string, data: unknown) => void>(null);
-
-  const handleRetry = useCallback(
-    (
-      failedUrl: string,
-      onHlsError: (_event: string, data: unknown) => void,
-    ) => {
-      const video = videoRef.current;
-      if (retryCountRef.current < MAX_RETRIES) {
-        retryCountRef.current++;
-        hlsRef.current?.destroy();
-
-        setTimeout(() => {
-          if (Hls.isSupported() && video) {
-            const retryHls = new Hls({
-              enableWorker: true,
-              lowLatencyMode: true,
-              backBufferLength: 90,
-              xhrSetup: xhrSetup,
-            });
-            hlsRef.current = retryHls;
-            retryHls.loadSource(resolvedUrl || streamUrl);
-            retryHls.attachMedia(video);
-            retryHls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
-            retryHls.on(Hls.Events.ERROR, onHlsError);
-          }
-        }, 500);
-        return true;
-      }
-      return false;
-    },
-    [xhrSetup, resolvedUrl, streamUrl, handleManifestParsed],
-  );
-
-  const handleProxyFallback = useCallback(
-    (
-      failedUrl: string,
-      onHlsError: (_event: string, data: unknown) => void,
-    ) => {
-      const video = videoRef.current;
-      hlsRef.current?.destroy();
-      const proxyUrl = applyProxyRules(failedUrl, channel.headers);
-
-      if (Hls.isSupported() && video) {
-        const newHls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 90,
-          xhrSetup: xhrSetup,
-        });
-        hlsRef.current = newHls;
-        newHls.loadSource(proxyUrl);
-        newHls.attachMedia(video);
-
-        newHls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
-        newHls.on(Hls.Events.ERROR, (evt: string, errData: unknown) => {
-          const fatalError = errData as { fatal: boolean };
-          if (fatalError.fatal) {
-            hlsRef.current?.destroy();
-            setToast({
-              message: "Proxy connection failed. Please try again later.",
-              type: "error",
-            });
-            onHlsError(evt, errData);
-          }
-        });
-      }
-    },
-    [xhrSetup, handleManifestParsed, channel.headers],
-  );
-
-  const handleHlsError = useCallback(
-    (_event: string, data: unknown) => {
-      const errorData = data as {
-        fatal: boolean;
-        type: string;
-        details: string;
-        url?: string;
-      };
-
-      if (
-        errorData.details === "bufferStalledError" ||
-        errorData.details === "bufferSeekOverHole"
-      ) {
-        return;
-      }
-
-      const hls = hlsRef.current;
-      const isNetworkError = errorData.type === Hls.ErrorTypes.NETWORK_ERROR;
-      const isManifestOrLevelError =
-        errorData.details === "manifestLoadError" ||
-        errorData.details === "levelLoadError" ||
-        errorData.details === "audioTrackLoadError" ||
-        errorData.details === "fragParsingError" ||
-        errorData.details === "bufferAppendError";
-
-      const isProxied = isProxiedUrl(errorData.url ?? streamUrl);
-      const isHighConfidence = isHighConfidenceDirect(
-        errorData.url ?? streamUrl,
-      );
-
-      const isRecoverable =
-        (errorData.fatal &&
-          isNetworkError &&
-          isManifestOrLevelError &&
-          !isProxied) ||
-        (errorData.type === Hls.ErrorTypes.MEDIA_ERROR && !isProxied);
-
-      if (!isRecoverable) {
-        console.error("[VideoPlayer] HLS Error:", errorData);
-      }
-
-      if (!errorData.fatal) return;
-
-      const failedUrl = errorData.url ?? streamUrl;
-
-      // Automated Retries
-      if (isNetworkError && isManifestOrLevelError && !isProxied) {
-        // Pass a wrapper to handleRetry to avoid circular ref in dependencies
-        const errorHandler = (e: string, d: unknown) =>
-          handleHlsErrorRef.current?.(e, d);
-        if (handleRetry(failedUrl, errorHandler)) return;
-      }
-
-      // Proxy Fallback
-      if (isRecoverable) {
-        if (isHighConfidence) {
-          hls?.destroy();
-          setToast({
-            message:
-              "Stream unavailable in your region. Please try again later.",
-            type: "error",
-          });
-          return;
-        }
-        const errorHandler = (e: string, d: unknown) =>
-          handleHlsErrorRef.current?.(e, d);
-        handleProxyFallback(failedUrl, errorHandler);
-        return;
-      }
-
-      // Recovery Logic
-      if (errorData.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        hls?.startLoad();
-      } else if (errorData.type === Hls.ErrorTypes.MEDIA_ERROR) {
-        hls?.recoverMediaError();
-      } else {
-        hls?.destroy();
-        setToast({
-          message: "Playback error. Please try again later.",
-          type: "error",
-        });
-      }
-    },
-    [streamUrl, handleRetry, handleProxyFallback],
-  );
-
-  // Use a second effect to keep the ref in sync without triggering handleHlsError re-creation
-  useEffect(() => {
-    handleHlsErrorRef.current = handleHlsError;
-  }, [handleHlsError]);
-
-  useEffect(() => {
-    if (!videoRef.current || !resolvedUrl) return;
-    const video = videoRef.current;
-    let hls: HlsInstance | null = null;
-
-    const urlToPlay = resolvedUrl;
-    effectiveStreamUrlRef.current = streamUrl;
-
-    const isHls =
-      streamUrl.toLowerCase().includes(".m3u8") ||
-      urlToPlay.toLowerCase().includes(".m3u8");
-
-    if (isHls) {
-      if (Hls.isSupported()) {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 90,
-          xhrSetup: xhrSetup,
-        });
-        hlsRef.current = hls;
-
-        // Load the (potentially browser-resolved) URL.
-        hls.loadSource(urlToPlay);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          handleManifestParsed();
-        });
-
-        hls.on(Hls.Events.ERROR, handleHlsError);
-
-        hls.on(
-          Hls.Events.SUBTITLE_TRACKS_UPDATED,
-          (_event: string, data: unknown) => {
-            const subtitleData = data as HlsSubtitleTracksUpdatedData;
-            const tracks = subtitleData.subtitleTracks.map((track, index) => ({
-              id: index,
-              label:
-                track.name ?? track.lang ?? `Track ${(index + 1).toString()}`,
-            }));
-            setSubtitleTracks(tracks);
-          },
-        );
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS fallback (iPhone/Safari)
-        video.src = urlToPlay;
-        video.addEventListener("loadedmetadata", handleManifestParsed);
-
-        const handleTracksChanged = () => {
-          const textTracks = video.textTracks;
-          const tracks = [];
-          for (let i = 0; i < textTracks.length; i++) {
-            const track = textTracks[i];
-            tracks.push({
-              id: i,
-              label:
-                track.label ||
-                track.language ||
-                `Track ${(i + 1).toString()}`,
-            });
-          }
-          setSubtitleTracks(tracks);
-        };
-        video.textTracks.addEventListener("addtrack", handleTracksChanged);
-        video.textTracks.addEventListener("removetrack", handleTracksChanged);
-        handleTracksChanged();
-      }
-    } else {
-      // Non-HLS
-      video.src = streamUrl;
-      video.addEventListener("loadedmetadata", handleManifestParsed);
-    }
-
-    return () => {
-      hls?.destroy();
-      video.removeAttribute("src");
-      video.load();
-    };
-  }, [streamUrl, resolvedUrl, xhrSetup, handleManifestParsed, handleHlsError]);
-  // Sync isPlaying with a ref for the auto-hide timer check
-  const isPlayingRef = useRef(isPlaying);
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
-
-  const showControls = useCallback(() => {
-    setIsControlsVisible(true);
-    if (controlsTimeoutRef.current) {
-      globalThis.clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = globalThis.setTimeout(() => {
-      if (isPlayingRef.current) {
-        setIsControlsVisible(false);
-      }
-    }, 3000) as unknown as number;
-  }, []);
-
-  // Ensure isPlaying is correctly detected when mounting or the video starts
+  // Sync isPlaying state with video element events
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
     const handleActualPlay = () => {
       setIsPlaying(true);
       showControls();
     };
     const handleActualPause = () => {
       setIsPlaying(false);
-      setIsControlsVisible(true);
-      if (controlsTimeoutRef.current) {
-        globalThis.clearTimeout(controlsTimeoutRef.current);
-      }
+      cancelAutoHide();
     };
-
     video.addEventListener("play", handleActualPlay);
     video.addEventListener("pause", handleActualPause);
     video.addEventListener("playing", handleActualPlay);
-
-    // Initial check
-    if (!video.paused) {
-      handleActualPlay();
-    }
-
+    if (!video.paused) handleActualPlay();
     return () => {
       video.removeEventListener("play", handleActualPlay);
       video.removeEventListener("pause", handleActualPause);
       video.removeEventListener("playing", handleActualPlay);
-      if (controlsTimeoutRef.current) {
-        globalThis.clearTimeout(controlsTimeoutRef.current);
-      }
     };
-  }, [showControls]);
-
-  // Fullscreen and Cast API listeners
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleFullscreenChange = () => {
-      const isFull = !!document.fullscreenElement;
-      setIsFullscreen(isFull);
-      // Unlock orientation on exit
-      if (!isFull) {
-        try {
-          screen.orientation.unlock();
-        } catch {
-          // Ignore errors
-        }
-      }
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-
-    const checkCastAvailability = () => {
-      const videoElement = video as HTMLVideoElementExtended;
-
-      const remote = (videoElement as unknown as { remote?: RemotePlayback })
-        .remote;
-      if (remote && typeof remote.watchAvailability === "function") {
-        remote
-          .watchAvailability((available) => {
-            setIsCastAvailable(available);
-          })
-          .catch(() => {
-            setIsCastAvailable(false);
-          });
-      } else if ("WebKitPlaybackTargetAvailabilityEvent" in globalThis) {
-        video.addEventListener(
-          "webkitplaybacktargetavailabilitychanged",
-          (event: Event) => {
-            const availabilityEvent =
-              event as WebKitPlaybackTargetAvailabilityEvent;
-            setIsCastAvailable(availabilityEvent.availability === "available");
-          },
-        );
-      }
-    };
-    checkCastAvailability();
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const handleFullscreenToggle = useCallback(async () => {
-    const container = playerContainerRef.current;
-    if (!container) return;
-
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-        // Note: handleFullscreenChange will handle unlock
-      } else {
-        await container.requestFullscreen();
-        // Try to lock orientation to landscape
-        try {
-          // Cast to unknown then to specific type to avoid 'any' if needed,
-          // but most modern browsers support .lock on screen.orientation.
-          const orientation = screen.orientation as unknown as {
-            lock: (type: string) => Promise<void>;
-          };
-          if (typeof orientation.lock === "function") {
-            await orientation.lock("landscape");
-          }
-        } catch (error) {
-          console.info(
-            "[VideoPlayer] Orientation lock failed (expected on some devices/browsers):",
-            error,
-          );
-        }
-      }
-    } catch (error) {
-      console.error("[VideoPlayer] Fullscreen toggle failed", error);
-    }
-    // State update will be caught by the event listener, but manual update just in case
-    setIsFullscreen(!!document.fullscreenElement);
-  }, []);
+  }, [showControls, cancelAutoHide]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const video = videoRef.current;
       if (!video) return;
-
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-
       switch (e.key.toLowerCase()) {
         case " ": {
           e.preventDefault();
-          if (video.paused) {
-            video.play();
-          } else {
-            video.pause();
-          }
+          if (video.paused) video.play().catch(console.error);
+          else video.pause();
           break;
         }
         case "m": {
@@ -717,7 +134,7 @@ const VideoPlayer = ({
           break;
         }
         case "f": {
-          void handleFullscreenToggle();
+          handleFullscreenToggle().catch(console.error);
           break;
         }
         case "arrowright": {
@@ -739,99 +156,19 @@ const VideoPlayer = ({
       }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleFullscreenToggle]);
-
-  // Next Up card logic
-  useEffect(() => {
-    if (!currentProgramme) {
-      return;
-    }
-
-    let showTimeout: ReturnType<typeof setTimeout> | null = null;
-    let hideTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const scheduleNextUp = () => {
-      const now = Date.now();
-      const endTime = currentProgramme.stop.getTime();
-      const showTime = endTime - 60_000;
-
-      // 1. Initial State
-      setShowNextUp(now >= showTime && now < endTime);
-
-      // 2. Schedule Show
-      if (showTime > now) {
-        showTimeout = setTimeout(() => {
-          setShowNextUp(true);
-        }, showTime - now);
-      }
-
-      // 3. Schedule Hide
-      if (endTime > now) {
-        hideTimeout = setTimeout(() => {
-          setShowNextUp(false);
-        }, endTime - now);
-      }
-    };
-
-    scheduleNextUp();
-
-    return () => {
-      if (showTimeout) clearTimeout(showTimeout);
-      if (hideTimeout) clearTimeout(hideTimeout);
-    };
-  }, [currentProgramme]);
 
   const handleSeek = (time: number) => {
     if (videoRef.current) videoRef.current.currentTime = time;
-  };
-
-  const handleCast = () => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const videoElement = video as HTMLVideoElementExtended;
-
-    const remote = (videoElement as unknown as { remote?: RemotePlayback })
-      .remote;
-    if (isCastAvailable && remote && typeof remote.prompt === "function") {
-      remote.prompt().catch((error: unknown) => {
-        console.error("Cast prompt failed:", error);
-      });
-    } else if (
-      typeof videoElement.webkitShowPlaybackTargetPicker === "function"
-    ) {
-      videoElement.webkitShowPlaybackTargetPicker();
-    }
-  };
-
-  const handleSubtitleChange = (trackId: number) => {
-    setCurrentSubtitleTrack(trackId);
-    if (hlsRef.current) {
-      hlsRef.current.subtitleTrack = trackId;
-    } else if (videoRef.current) {
-      const textTracks = videoRef.current.textTracks;
-      for (let i = 0; i < textTracks.length; i++) {
-        textTracks[i].mode = i === trackId ? "showing" : "hidden";
-      }
-    }
-  };
-
-  const handleQualityChange = (qualityId: number) => {
-    setCurrentQuality(qualityId);
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = qualityId;
-    }
   };
 
   const handlePlayPause = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch((err: Error) => {
-        if (err.name !== "AbortError") console.error("Play failed:", err);
+      video.play().catch((error: Error) => {
+        if (error.name !== "AbortError") console.error("Play failed:", error);
       });
     } else {
       video.pause();
@@ -839,9 +176,7 @@ const VideoPlayer = ({
   }, []);
 
   const handleMuteToggle = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-    }
+    if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
     setIsMuted((m) => !m);
   };
 
@@ -856,7 +191,6 @@ const VideoPlayer = ({
 
   const handlePipToggle = useCallback(async () => {
     if (!videoRef.current) return;
-
     try {
       const action = document.pictureInPictureElement
         ? document.exitPictureInPicture()
@@ -866,21 +200,6 @@ const VideoPlayer = ({
       console.error("PiP toggle failed:", error);
     }
   }, []);
-
-  if (!resolvedUrl) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4">
-          <span className="material-symbols-rounded animate-spin text-4xl text-(--md-sys-color-primary)">
-            refresh
-          </span>
-          <p className="text-sm font-medium text-white/60">
-            Resolving stream...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -903,10 +222,7 @@ const VideoPlayer = ({
         }}
         onPause={() => {
           setIsPlaying(false);
-          setIsControlsVisible(true);
-          if (controlsTimeoutRef.current) {
-            globalThis.clearTimeout(controlsTimeoutRef.current);
-          }
+          cancelAutoHide();
         }}
         onPlaying={() => {
           setIsPlaying(true);
@@ -920,7 +236,7 @@ const VideoPlayer = ({
         <track kind="captions" />
       </video>
 
-      {/* Interaction Overlay - captures play/pause clicks and resets auto-hide timer */}
+      {/* Interaction overlay — captures play/pause clicks and resets auto-hide timer */}
       <div
         className="absolute inset-0 z-10 cursor-pointer"
         onClick={(e) => {
@@ -930,9 +246,9 @@ const VideoPlayer = ({
         }}
       />
 
-      {isBuffering && isPlaying && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-          <div className="h-16 w-16 animate-spin rounded-full border-t-2 border-b-2 border-white/80"></div>
+      {(!resolvedUrl || isBuffering) && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/20 border-t-white/80"></div>
         </div>
       )}
 
@@ -949,7 +265,7 @@ const VideoPlayer = ({
         onSeek={handleSeek}
         isFullscreen={isFullscreen}
         onFullscreenToggle={() => {
-          handleFullscreenToggle();
+          handleFullscreenToggle().catch(console.error);
         }}
         isCastAvailable={isCastAvailable}
         onCast={handleCast}
@@ -963,7 +279,7 @@ const VideoPlayer = ({
         onQualityChange={handleQualityChange}
         isPipAvailable={isPipAvailable}
         onPipToggle={() => {
-          handlePipToggle();
+          handlePipToggle().catch(console.error);
         }}
       />
 
@@ -978,17 +294,13 @@ const VideoPlayer = ({
         <X size={24} />
       </button>
 
-      {toast && (
+      {hlsError && (
         <div className="animate-slide-in-up fixed bottom-12 left-1/2 z-[60] -translate-x-1/2">
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/80 px-6 py-4 shadow-2xl backdrop-blur-xl">
-            <div
-              className={`h-2.5 w-2.5 rounded-full ${toast?.type === "error" ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" : "bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"}`}
-            />
-            <p className="text-sm font-medium text-white/90">
-              {toast?.message}
-            </p>
+            <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+            <p className="text-sm font-medium text-white/90">{hlsError}</p>
             <button
-              onClick={() => setToast(null)}
+              onClick={clearHlsError}
               className="ml-2 flex h-6 w-6 items-center justify-center rounded-full text-white/40 hover:bg-white/10 hover:text-white"
             >
               <X size={16} />
@@ -1004,14 +316,14 @@ const VideoPlayer = ({
       )}
 
       <style>{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.3s ease-in-out;
-                }
-            `}</style>
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 };

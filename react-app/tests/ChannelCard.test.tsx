@@ -27,10 +27,10 @@ describe("ChannelCard", () => {
   const mockProgrammes: Programme[] = [
     {
       channelId: "nz-tv1",
-      start: new Date(Date.now() - 1800000), // 30 mins ago
-      stop: new Date(Date.now() + 1800000), // 30 mins from now
-      startMs: Date.now() - 1800000,
-      stopMs: Date.now() + 1800000,
+      start: new Date(Date.now() - 1_800_000), // 30 mins ago
+      stop: new Date(Date.now() + 1_800_000), // 30 mins from now
+      startMs: Date.now() - 1_800_000,
+      stopMs: Date.now() + 1_800_000,
       title: "Current Show",
       description: "Test Desc",
       isNew: true,

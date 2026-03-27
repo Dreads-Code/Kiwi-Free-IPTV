@@ -32,13 +32,13 @@ class IndexedDbCache {
         resolve();
       };
 
-      request.onerror = (event) => {
+      request.addEventListener("error", (event) => {
         console.error(
           "IndexedDB error:",
           (event.target as IDBOpenDBRequest).error,
         );
         reject((event.target as IDBOpenDBRequest).error);
-      };
+      });
     });
   }
 
@@ -57,7 +57,7 @@ class IndexedDbCache {
 
       const request = store.put(entry);
       request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      request.addEventListener("error", () => reject(request.error));
     });
   }
 
@@ -85,7 +85,7 @@ class IndexedDbCache {
         }
       };
 
-      request.onerror = () => reject(request.error);
+      request.addEventListener("error", () => reject(request.error));
     });
   }
 }

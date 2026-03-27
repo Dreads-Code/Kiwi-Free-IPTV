@@ -264,7 +264,7 @@ const Player: React.FC = () => {
 
   const handleClosePlayer = useCallback(() => {
     if (modalDepthRef.current > 0) {
-      window.history.back();
+      globalThis.history.back();
     } else {
       closePlayer();
     }
@@ -272,7 +272,7 @@ const Player: React.FC = () => {
 
   const handleCloseDetail = useCallback(() => {
     if (modalDepthRef.current > 0) {
-      window.history.back();
+      globalThis.history.back();
     } else {
       closeDetail();
     }
@@ -290,7 +290,7 @@ const Player: React.FC = () => {
 
   const handleCloseSchedule = useCallback(() => {
     if (modalDepthRef.current > 0) {
-      window.history.back();
+      globalThis.history.back();
     } else {
       closeSchedule();
     }
@@ -305,7 +305,7 @@ const Player: React.FC = () => {
 
   const handleCloseStremio = useCallback(() => {
     if (modalDepthRef.current > 0) {
-      window.history.back();
+      globalThis.history.back();
     } else {
       closeStremio();
     }
@@ -363,7 +363,7 @@ const Player: React.FC = () => {
     ].filter(Boolean).length;
 
     if (depth > modalDepthRef.current) {
-      window.history.pushState({ isModal: true, depth }, "");
+      globalThis.history.pushState({ isModal: true, depth }, "");
     }
     modalDepthRef.current = depth;
   }, [playingChannel, detailData, scheduleViewConfig.isOpen, isStremioOpen]);
@@ -386,8 +386,8 @@ const Player: React.FC = () => {
       }
     };
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    globalThis.addEventListener("popstate", handlePopState);
+    return () => globalThis.removeEventListener("popstate", handlePopState);
   }, [closePlayer, closeDetail, closeSchedule, closeStremio]);
 
   useEffect(() => {
@@ -484,15 +484,17 @@ const Player: React.FC = () => {
       if (!isNavigationActive) return;
 
       switch (e.key) {
-        case "ArrowUp":
+        case "ArrowUp": {
           e.preventDefault();
           handleArrowVertical("up");
           break;
-        case "ArrowDown":
+        }
+        case "ArrowDown": {
           e.preventDefault();
           handleArrowVertical("down");
           break;
-        case "ArrowLeft":
+        }
+        case "ArrowLeft": {
           e.preventDefault();
           if (stateRef.current.focusLocation === "header") {
             handleHeaderNavigation("left");
@@ -500,7 +502,8 @@ const Player: React.FC = () => {
             handleChannelNavigation("left");
           }
           break;
-        case "ArrowRight":
+        }
+        case "ArrowRight": {
           e.preventDefault();
           if (stateRef.current.focusLocation === "header") {
             handleHeaderNavigation("right");
@@ -508,13 +511,16 @@ const Player: React.FC = () => {
             handleChannelNavigation("right");
           }
           break;
+        }
         case "Enter":
-        case " ":
+        case " ": {
           e.preventDefault();
           handleSelection();
           break;
-        default:
+        }
+        default: {
           break;
+        }
       }
     };
 

@@ -50,7 +50,7 @@ describe("StremioModal", () => {
   });
 
   it("should navigate to stremio:// when Install is clicked", () => {
-    const originalLocation = window.location;
+    const originalLocation = globalThis.location;
     const mockLocation = new URL("http://localhost");
     (mockLocation as unknown as Location).assign = vi.fn();
 
@@ -60,7 +60,7 @@ describe("StremioModal", () => {
     const installButton = screen.getByText("Install Addon");
     fireEvent.click(installButton);
 
-    expect(window.location.href).toContain("stremio://");
+    expect(globalThis.location.href).toContain("stremio://");
 
     vi.stubGlobal("location", originalLocation);
   });

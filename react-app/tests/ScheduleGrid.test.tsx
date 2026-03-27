@@ -22,9 +22,9 @@ describe("ScheduleGrid", () => {
         {
           title: "Show 1",
           startMs: Date.now(),
-          stopMs: Date.now() + 3600000,
+          stopMs: Date.now() + 3_600_000,
           start: new Date(),
-          stop: new Date(Date.now() + 3600000),
+          stop: new Date(Date.now() + 3_600_000),
           channelId: "1",
           description: "Show 1 Description",
         },

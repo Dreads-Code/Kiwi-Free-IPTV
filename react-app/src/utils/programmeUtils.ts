@@ -47,7 +47,7 @@ export const findCurrentProgramme = (
   now: Date = new Date(),
 ): Programme | null => {
   const index = findCurrentProgrammeIndex(programmes, now);
-  return index !== -1 ? (programmes as Programme[])[index] : null;
+  return index === -1 ? null : (programmes as Programme[])[index];
 };
 
 /**

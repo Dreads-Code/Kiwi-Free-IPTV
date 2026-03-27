@@ -27,17 +27,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const mockCheck = (url: string) => {
+  const urlLower = url.toLowerCase();
+  return (
+    urlLower.includes("i.mjh.nz") ||
+    urlLower.includes("thehlive.com") ||
+    urlLower.includes("fullscreen.nz")
+  );
+};
+
 describe("streamProxyService", () => {
   describe("isAllowedUrl", () => {
-    const mockCheck = (url: string) => {
-      const urlLower = url.toLowerCase();
-      return (
-        urlLower.includes("i.mjh.nz") ||
-        urlLower.includes("thehlive.com") ||
-        urlLower.includes("fullscreen.nz")
-      );
-    };
-
     it("should return true for known allowed domains", () => {
       expect(isAllowedUrl("https://i.mjh.nz/nz/tv.m3u8", mockCheck)).toBe(true);
     });

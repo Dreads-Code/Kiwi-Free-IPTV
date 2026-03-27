@@ -7,8 +7,10 @@ const mockHlsInstance = {
   destroy: vi.fn(),
 };
 
+const hlsIsSupported = () => true;
+
 class MockHls {
-  static readonly isSupported = vi.fn(() => true);
+  static readonly isSupported = vi.fn(hlsIsSupported);
   static readonly Events = {
     MANIFEST_PARSED: "manifestParsed",
     ERROR: "error",

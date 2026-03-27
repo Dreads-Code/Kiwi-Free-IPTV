@@ -42,39 +42,43 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
       if (!isOpen) return;
 
       switch (e.key) {
-        case "Escape":
+        case "Escape": {
           e.preventDefault();
           e.stopPropagation();
           onClose();
           break;
-        case "ArrowUp":
+        }
+        case "ArrowUp": {
           e.preventDefault();
           e.stopPropagation();
           setModalFocusIndex(0);
           installRef.current?.focus();
           break;
-        case "ArrowDown":
+        }
+        case "ArrowDown": {
           e.preventDefault();
           e.stopPropagation();
           setModalFocusIndex(1);
           copyRef.current?.focus();
           break;
-        case "Enter":
+        }
+        case "Enter": {
           // If we want to prevent bubbling on Enter too
           e.stopPropagation();
           break;
+        }
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
   if (!isVisible && !isOpen) return null;
 
-  const protocol = window.location.protocol === "https:" ? "https" : "http";
-  const manifestUrl = `${protocol}://${window.location.host}/manifest.json`;
-  const stremioUrl = `stremio://${window.location.host}/manifest.json`;
+  const protocol = globalThis.location.protocol === "https:" ? "https" : "http";
+  const manifestUrl = `${protocol}://${globalThis.location.host}/manifest.json`;
+  const stremioUrl = `stremio://${globalThis.location.host}/manifest.json`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(manifestUrl).then(() => {
@@ -86,7 +90,7 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleInstall = () => {
-    window.location.href = stremioUrl;
+    globalThis.location.href = stremioUrl;
   };
 
   return (

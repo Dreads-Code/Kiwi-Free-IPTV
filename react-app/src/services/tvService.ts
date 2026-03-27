@@ -147,5 +147,3 @@ export const fetchAllData = async (): Promise<{
 
   return { channels, epg };
 };
-
-

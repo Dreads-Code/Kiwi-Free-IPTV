@@ -135,8 +135,8 @@ export const useProgramImage = (
             }
 
             return { poster, banner };
-          } catch (err) {
-            console.warn("[useProgramImage] Fetch failed:", err);
+          } catch (error) {
+            console.warn("[useProgramImage] Fetch failed:", error);
             return null;
           }
         })();

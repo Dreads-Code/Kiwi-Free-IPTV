@@ -30,8 +30,9 @@ const DeckChannelCard = React.forwardRef<HTMLDivElement, DeckChannelCardProps>(
     `;
 
     const cardClasses = `
-        w-[56vw] md:w-[28vw] lg:w-[22vw] max-w-sm shrink-0 
-        aspect-[2/3] rounded-(--border-radius-lg) 
+        deck-channel-card
+        w-[56vw] md:w-[28vw] lg:w-[22vw] max-w-sm shrink-0
+        aspect-[2/3] rounded-(--border-radius-lg)
         snap-center overflow-hidden
         shadow-2xl shadow-black/50
         relative bg-(--md-sys-color-surface-variant) border
@@ -105,7 +106,7 @@ const DeckChannelCard = React.forwardRef<HTMLDivElement, DeckChannelCardProps>(
             </div>
           )}
         </div>
-        <p className={nameClasses}>{channel.name}</p>
+        <p className={`${nameClasses} deck-channel-name`}>{channel.name}</p>
       </div>
     );
   },

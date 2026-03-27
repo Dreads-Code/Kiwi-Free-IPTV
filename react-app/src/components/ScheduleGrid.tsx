@@ -275,7 +275,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
                 const programme = programmes[i];
                 const startOffsetMs =
                   programme.startMs - scheduleStartTime.getTime();
-                const topPx = (startOffsetMs / (1000 * 60 * 60)) * pixelsPerHour;
+                const topPx =
+                  (startOffsetMs / (1000 * 60 * 60)) * pixelsPerHour;
 
                 if (topPx >= visibleBottom) break;
 

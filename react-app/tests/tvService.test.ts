@@ -1,45 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  fetchAllData,
-} from "../src/services/tvService";
+import { fetchAllData } from "../src/services/tvService";
 
-// Mock global fetch
-vi.stubGlobal("fetch", vi.fn());
+// Mock WASM module — parse_nz_channels returns RustChannelMeta[]
+vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
+  parse_nz_channels: vi.fn(),
+  process_icon_url: vi.fn((url: string) => url),
+  clean_show_title: vi.fn((title: string) => title),
+}));
+
+// Mock IndexedDB cache so tests don't leak state between runs
+vi.mock("../src/utils/indexedDb.js", () => ({
+  epgCache: {
+    get: vi.fn(async () => null),
+    set: vi.fn(async () => {}),
+  },
+}));
+
+import * as wasmModule from "../src/wasm/iptv_nz_addon_rust.js";
+
+const mockRustData = [
+  {
+    id: "test-channel-1",
+    name: "Test Channel 1",
+    logo: "https://logo.com/1.png",
+    url: "https://stream.com/1.m3u8",
+    category: "Entertainment",
+    description: "Channel 1 description",
+    programmes: [
+      {
+        start: "20240728000000 +1200",
+        stop: "20240728010000 +1200",
+        channel: "test-channel-1",
+        title: "Programme 1",
+        desc: "Desc 1",
+        icon: { src: "https://icon.com/1.jpg" },
+        category: ["Movie"],
+        rating: { value: "PG" },
+      },
+    ],
+  },
+];
 
 describe("tvService", () => {
   beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
     vi.clearAllMocks();
+    vi.mocked(wasmModule.parse_nz_channels).mockReturnValue(mockRustData);
   });
 
   describe("fetchAllData", () => {
-    it("should fetch data from /api/data and successfully parse it", async () => {
-      const mockRustData = [
-        {
-          id: "test-channel-1",
-          name: "Test Channel 1",
-          logo: "https://logo.com/1.png",
-          url: "https://stream.com/1.m3u8",
-          category: "Entertainment",
-          description: "Channel 1 description",
-          programmes: [
-            {
-              start: "20240728000000 +1200",
-              stop: "20240728010000 +1200",
-              channel: "test-channel-1",
-              title: "Programme 1",
-              desc: "Desc 1",
-              icon: { src: "https://icon.com/1.jpg" },
-              category: ["Movie"],
-              rating: { value: "PG" },
-            },
-          ],
-        },
-      ];
-
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockRustData,
-      } as Response);
+    it("should fetch m3u8 and EPG, parse via WASM, and return channels + epg", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => "#EXTM3U",
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => "<tv></tv>",
+        } as Response);
 
       const result = await fetchAllData();
 
@@ -57,25 +76,28 @@ describe("tvService", () => {
       expect(programmes![0].stop).toBeInstanceOf(Date);
     });
 
-    it("should throw an error if the fetch response is not ok", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        statusText: "Internal Server Error",
-      } as Response);
+    it("should throw if either fetch response is not ok", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        } as Response)
+        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
 
       await expect(fetchAllData()).rejects.toThrow(
-        "Failed to fetch consolidated data: Internal Server Error",
+        "Failed to fetch data from source",
       );
     });
 
-    it("should correctly filter out programmes with invalid start/stop dates", async () => {
-      const mockRustData = [
+    it("should filter out programmes with invalid start or stop dates", async () => {
+      vi.mocked(wasmModule.parse_nz_channels).mockReturnValue([
         {
           id: "test-channel-1",
           name: "Test Channel 1",
           url: "https://stream.com/1.m3u8",
           category: "Entertainment",
-          description: "Channel 1 description",
+          description: "",
           programmes: [
             {
               start: "invalid-date",
@@ -91,17 +113,14 @@ describe("tvService", () => {
             },
           ],
         },
-      ];
+      ]);
 
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockRustData,
-      } as Response);
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response)
+        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
 
       const result = await fetchAllData();
       expect(result.epg.get("test-channel-1")).toHaveLength(0);
     });
   });
-
-
 });

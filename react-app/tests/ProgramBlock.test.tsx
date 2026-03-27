@@ -8,9 +8,9 @@ describe("ProgramBlock", () => {
     title: "Test Show",
     description: "Test description",
     startMs: Date.now(),
-    stopMs: Date.now() + 3600000,
+    stopMs: Date.now() + 3_600_000,
     start: new Date(),
-    stop: new Date(Date.now() + 3600000),
+    stop: new Date(Date.now() + 3_600_000),
     channelId: "1",
     categories: ["Movie"],
     rating: "G",
@@ -39,7 +39,7 @@ describe("ProgramBlock", () => {
     const programme = {
       ...mockProgramme,
       startMs: startTime.getTime(),
-      stopMs: startTime.getTime() + 3600000, // 1 hour
+      stopMs: startTime.getTime() + 3_600_000, // 1 hour
     };
 
     // Grid starts exactly at programme start

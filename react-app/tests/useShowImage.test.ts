@@ -9,7 +9,7 @@ describe("useProgramImage", () => {
     start: new Date(),
     stop: new Date(),
     startMs: Date.now(),
-    stopMs: Date.now() + 3600000,
+    stopMs: Date.now() + 3_600_000,
     title: "Test Show",
     description: "Test Description",
     icon: "https://example.com/icon.jpg",

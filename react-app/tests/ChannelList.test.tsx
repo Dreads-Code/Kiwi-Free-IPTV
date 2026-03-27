@@ -25,7 +25,7 @@ class MockIntersectionObserver {
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
 
 // Mock scrollIntoView
-window.HTMLElement.prototype.scrollIntoView = vi.fn();
+globalThis.HTMLElement.prototype.scrollIntoView = vi.fn();
 
 describe("ChannelList", () => {
   const mockChannels: Channel[] = [
@@ -77,9 +77,9 @@ describe("ChannelList", () => {
     );
 
     const card2 = screen.getByText("Channel 2");
-    expect(card2.getAttribute("data-active")).toBe("true");
+    expect(card2.dataset.active).toBe("true");
     const card1 = screen.getByText("Channel 1");
-    expect(card1.getAttribute("data-active")).toBe("false");
+    expect(card1.dataset.active).toBe("false");
   });
 
   it("should display an empty list if no channels are provided", () => {

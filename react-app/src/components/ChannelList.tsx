@@ -23,86 +23,119 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<Map<string, HTMLDivElement>>(new Map());
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  // This ref is used to prevent the IntersectionObserver from firing during a programmatic scroll,
-  // which would cause an infinite scroll feedback loop.
   const isProgrammaticScrollActive = useRef(false);
   const scrollEndTimeout = useRef<number | null>(null);
 
-  // Effect to set up the IntersectionObserver for manual scrolling
+  // Activate whichever card is closest to the horizontal centre of the scroller.
+  // Uses getBoundingClientRect so it works regardless of scroll/positioning context.
+  const activateCenterChannel = useRef(() => {
+    if (isProgrammaticScrollActive.current) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const scrollerCenter = scrollerRect.left + scrollerRect.width / 2;
+
+    let closestId: string | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    for (const [id, el] of cardsRef.current) {
+      const cardRect = el.getBoundingClientRect();
+      const cardCenter = cardRect.left + cardRect.width / 2;
+      const distance = Math.abs(cardCenter - scrollerCenter);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestId = id;
+      }
+    }
+
+    if (closestId) {
+      onChannelActivate(closestId);
+    }
+  });
+
+  // Keep the callback ref current without re-registering listeners on every render.
+  useEffect(() => {
+    activateCenterChannel.current = () => {
+      if (isProgrammaticScrollActive.current) return;
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+
+      const scrollerRect = scroller.getBoundingClientRect();
+      const scrollerCenter = scrollerRect.left + scrollerRect.width / 2;
+
+      let closestId: string | null = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      for (const [id, el] of cardsRef.current) {
+        const cardRect = el.getBoundingClientRect();
+        const cardCenter = cardRect.left + cardRect.width / 2;
+        const distance = Math.abs(cardCenter - scrollerCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestId = id;
+        }
+      }
+
+      if (closestId) {
+        onChannelActivate(closestId);
+      }
+    };
+  }, [onChannelActivate]);
+
+  // Attach scroll listeners once. Uses scrollend where available (Chrome/Firefox),
+  // falls back to scroll + debounce for Safari.
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
-    let debounceTimeoutId: number;
-    const debouncedActivate = (id: string) => {
-      globalThis.clearTimeout(debounceTimeoutId);
-      debounceTimeoutId = globalThis.setTimeout(() => {
-        onChannelActivate(id);
-      }, 150) as unknown as number;
+    const onScrollEnd = () => activateCenterChannel.current();
+
+    let debounceTimer: number;
+    const onScroll = () => {
+      globalThis.clearTimeout(debounceTimer);
+      debounceTimer = globalThis.setTimeout(
+        () => activateCenterChannel.current(),
+        200,
+      ) as unknown as number;
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Ignore intersections that happen during a programmatic scroll
-        if (isProgrammaticScrollActive.current) return;
-
-        // With snap-center and a tiny center margin, usually only one item intersects.
-        // We pick the first one that is currently intersecting the center line.
-        const centerEntry = entries.find((e) => e.isIntersecting);
-        if (centerEntry) {
-          const channelId = (centerEntry.target as HTMLElement).dataset
-            .channelId;
-          if (channelId) {
-            debouncedActivate(channelId);
-          }
-        }
-      },
-      {
-        root: scroller,
-        // Target a 1px vertical sliver in the center of the scroller
-        rootMargin: "0px -50% 0px -50%",
-        threshold: 0,
-      },
-    );
-
-    observerRef.current = observer;
-    cardsRef.current.forEach((el) => {
-      observer.observe(el);
-    });
+    if ("onscrollend" in scroller) {
+      scroller.addEventListener("scrollend", onScrollEnd);
+    } else {
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
 
     return () => {
-      globalThis.clearTimeout(debounceTimeoutId);
-      observer.disconnect();
+      globalThis.clearTimeout(debounceTimer);
+      if ("onscrollend" in scroller) {
+        scroller.removeEventListener("scrollend", onScrollEnd);
+      } else {
+        scroller.removeEventListener("scroll", onScroll);
+      }
     };
-  }, [channels, onChannelActivate]);
+  }, []);
 
-  // Effect to handle programmatic scrolling when activeChannelId changes (e.g., from keyboard)
+  // Programmatic scroll when activeChannelId changes (e.g. keyboard navigation).
   useEffect(() => {
     if (!activeChannelId || !scrollerRef.current) return;
 
     const cardElement = cardsRef.current.get(activeChannelId);
-    if (cardElement) {
-      // Set a flag to disable the observer logic during the scroll animation
-      isProgrammaticScrollActive.current = true;
+    if (!cardElement) return;
 
-      cardElement.scrollIntoView({
-        behavior: "instant",
-        inline: "center",
-        block: "nearest",
-      });
+    isProgrammaticScrollActive.current = true;
+    cardElement.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
 
-      // Clear any existing timeout to handle rapid key presses
-      if (scrollEndTimeout.current) {
-        globalThis.clearTimeout(scrollEndTimeout.current);
-      }
-
-      // After a delay, re-enable the observer logic. This timeout should be long enough
-      // for the smooth scroll animation to complete.
-      scrollEndTimeout.current = globalThis.setTimeout(() => {
-        isProgrammaticScrollActive.current = false;
-      }, 100) as unknown as number; // Reduced for instant scrolling
+    if (scrollEndTimeout.current) {
+      globalThis.clearTimeout(scrollEndTimeout.current);
     }
+    scrollEndTimeout.current = globalThis.setTimeout(() => {
+      isProgrammaticScrollActive.current = false;
+    }, 600) as unknown as number;
 
     return () => {
       if (scrollEndTimeout.current) {
@@ -113,7 +146,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 
   return (
     <div
-      className="relative h-[700px] w-full py-4"
+      className="relative h-[min(700px,80svh)] w-full py-4"
       role="listbox"
       aria-label="Channel selection deck. Use left and right arrow keys to navigate channels, and press Enter to view details."
       aria-activedescendant={
