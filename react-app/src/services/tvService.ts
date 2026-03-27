@@ -70,8 +70,6 @@ export const fetchAllData = async (): Promise<{
   channels: Channel[];
   epg: EpgData;
 }> => {
-  console.log("[WASM] Initializing data fetch...");
-
   // 1. Check persistent cache for EPG (8MB is too big for Every reload)
   const cachedEpg = await epgCache.get("epg_xml", EPG_CACHE_TTL);
 
@@ -79,9 +77,6 @@ export const fetchAllData = async (): Promise<{
   let epgText: string;
 
   if (cachedEpg) {
-    console.log(
-      "[WASM] EPG Cache HIT (IndexedDB). Fetching fresh M3U8 only...",
-    );
     const m3u8Res = await fetch(
       `/api/fetch?url=${encodeURIComponent(MJH_NZ_M3U8)}`,
     );
@@ -89,7 +84,6 @@ export const fetchAllData = async (): Promise<{
     m3u8Text = await m3u8Res.text();
     epgText = cachedEpg;
   } else {
-    console.log("[WASM] EPG Cache MISS. Fetching fresh M3U8 and EPG (8MB)...");
     const [m3u8Res, epgRes] = await Promise.all([
       fetch(`/api/fetch?url=${encodeURIComponent(MJH_NZ_M3U8)}`),
       fetch(`/api/fetch?url=${encodeURIComponent(MJH_NZ_EPG)}`),
@@ -110,15 +104,13 @@ export const fetchAllData = async (): Promise<{
 
   // Use the optimized Rust engine to parse everything locally in the browser
   const rustData = parse_nz_channels(m3u8Text, epgText) as RustChannelMeta[];
-  console.log(
-    `[WASM] Successfully parsed ${rustData.length} channels locally.`,
-  );
 
   const channels: Channel[] = [];
   const epg: EpgData = new Map();
 
   for (const meta of rustData) {
-    const channel: Channel = {
+    // 1. Map to Channel object
+    channels.push({
       id: meta.id,
       name: meta.name,
       logo: process_icon_url(meta.logo || "") || meta.logo || "",
@@ -126,39 +118,34 @@ export const fetchAllData = async (): Promise<{
       epg_id: meta.id,
       category: meta.category as Channel["category"],
       headers: meta.http_headers,
-    };
+    });
 
-    channels.push(channel);
+    // 2. Map to Programme objects in the same pass (avoiding .map().filter())
+    const programmes: Programme[] = [];
+    for (const p of meta.programmes) {
+      const start = parseEpgDate(p.start);
+      const stop = parseEpgDate(p.stop);
+      if (!start || !stop) continue;
 
-    const programmes = meta.programmes
-      .map((p): Programme | null => {
-        const start = parseEpgDate(p.start);
-        const stop = parseEpgDate(p.stop);
-        if (!start || !stop) return null;
-
-        return {
-          channelId: meta.id,
-          start,
-          stop,
-          startMs: start.getTime(),
-          stopMs: stop.getTime(),
-          title: clean_show_title(p.title ?? "No Title"),
-          description: p.desc ?? meta.description,
-          rating: p.rating?.value,
-          icon: process_icon_url(p.icon?.src || "") || p.icon?.src,
-          categories: p.category,
-          date: p.date,
-          starRating: p.star_rating?.value,
-        } as Programme;
-      })
-      .filter((p): p is Programme => p !== null);
-
+      programmes.push({
+        channelId: meta.id,
+        start,
+        stop,
+        startMs: start.getTime(),
+        stopMs: stop.getTime(),
+        title: clean_show_title(p.title ?? "No Title"),
+        description: p.desc ?? meta.description,
+        rating: p.rating?.value,
+        icon: process_icon_url(p.icon?.src || "") || p.icon?.src,
+        categories: p.category,
+        date: p.date,
+        starRating: p.star_rating?.value,
+      } as Programme);
+    }
     epg.set(meta.id, programmes);
   }
 
   return { channels, epg };
 };
 
-// Deprecated exports for backward compatibility during transition
-export const fetchChannels = async () => (await fetchAllData()).channels;
-export const fetchEpg = async () => (await fetchAllData()).epg;
+

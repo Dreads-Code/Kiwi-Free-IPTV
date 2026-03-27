@@ -14,8 +14,8 @@ interface DeckChannelCardProps {
   isActive: boolean;
 }
 
-const DeckChannelCard: React.FC<DeckChannelCardProps> = React.memo(
-  ({ channel, programmes, onSelect, isActive }) => {
+const DeckChannelCard = React.forwardRef<HTMLDivElement, DeckChannelCardProps>(
+  ({ channel, programmes, onSelect, isActive }, ref) => {
     const currentProgramme = useMemo(
       () => findCurrentProgramme(programmes),
       [programmes],
@@ -51,6 +51,7 @@ const DeckChannelCard: React.FC<DeckChannelCardProps> = React.memo(
 
     return (
       <div
+        ref={ref}
         id={`channel-card-${channel.id}`}
         onClick={handleSelect}
         onKeyDown={(e) => {
@@ -112,4 +113,4 @@ const DeckChannelCard: React.FC<DeckChannelCardProps> = React.memo(
 
 DeckChannelCard.displayName = "DeckChannelCard";
 
-export default DeckChannelCard;
+export default React.memo(DeckChannelCard);

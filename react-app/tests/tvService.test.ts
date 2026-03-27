@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   fetchAllData,
-  fetchChannels,
-  fetchEpg,
 } from "../src/services/tvService";
 
 // Mock global fetch
@@ -105,46 +103,5 @@ describe("tvService", () => {
     });
   });
 
-  describe("fetchChannels & fetchEpg (deprecated wrappers)", () => {
-    it("fetchChannels should correctly resolve and return just the channels", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          {
-            id: "1",
-            name: "Ch 1",
-            logo: "https://logo.com/1.png",
-            url: "https://stream.com/1.m3u8",
-            category: "New Zealand",
-            description: "",
-            programmes: [],
-          },
-        ],
-      } as Response);
 
-      const channels = await fetchChannels();
-      expect(channels).toHaveLength(1);
-      expect(channels[0].id).toBe("1");
-    });
-
-    it("fetchEpg should correctly resolve and return just the epg", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          {
-            id: "1",
-            name: "Ch 1",
-            logo: "https://logo.com/1.png",
-            url: "https://stream.com/1.m3u8",
-            category: "New Zealand",
-            description: "",
-            programmes: [],
-          },
-        ],
-      } as Response);
-
-      const epg = await fetchEpg();
-      expect(epg.has("1")).toBe(true);
-    });
-  });
 });

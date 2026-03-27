@@ -525,15 +525,18 @@ const VideoPlayer = ({
         video.addEventListener("loadedmetadata", handleManifestParsed);
 
         const handleTracksChanged = () => {
-          const tracks = [...video.textTracks].map(
-            (track: TextTrack, index: number) => ({
-              id: index,
+          const textTracks = video.textTracks;
+          const tracks = [];
+          for (let i = 0; i < textTracks.length; i++) {
+            const track = textTracks[i];
+            tracks.push({
+              id: i,
               label:
                 track.label ||
                 track.language ||
-                `Track ${(index + 1).toString()}`,
-            }),
-          );
+                `Track ${(i + 1).toString()}`,
+            });
+          }
           setSubtitleTracks(tracks);
         };
         video.textTracks.addEventListener("addtrack", handleTracksChanged);
@@ -809,8 +812,9 @@ const VideoPlayer = ({
     if (hlsRef.current) {
       hlsRef.current.subtitleTrack = trackId;
     } else if (videoRef.current) {
-      for (const [index, track] of [...videoRef.current.textTracks].entries()) {
-        track.mode = index === trackId ? "showing" : "hidden";
+      const textTracks = videoRef.current.textTracks;
+      for (let i = 0; i < textTracks.length; i++) {
+        textTracks[i].mode = i === trackId ? "showing" : "hidden";
       }
     }
   };

@@ -22,7 +22,7 @@ default = ["native"]
 native = ["vercel_runtime", "tokio", "axum", "axum-streams", "tower", "tower-http", "moka"]
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls-native-roots"] }
 quick-xml = { version = "0.36", features = ["serialize"] }
@@ -58,6 +58,8 @@ moka = { version = "0.12", features = ["future"], optional = true }
 [dev-dependencies]
 mockito = "1.5"
 http-body-util = "0.1"
+wasm-bindgen-test = "0.3"
+urlencoding = "2.1"
 
 [profile.release]
 codegen-units = 1

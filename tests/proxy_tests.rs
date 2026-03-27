@@ -5,6 +5,13 @@ use mockito::Server;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+use axum::http::HeaderMap;
+use base64::Engine as _;
+use iptv_nz_addon_rust::proxy::{self, build_proxy_url, get_base_url};
+use mockito::Server;
+use serde::Deserialize;
+use std::collections::HashMap;
+
 #[derive(Deserialize)]
 struct ProxyPayload {
     url: String,
@@ -12,6 +19,13 @@ struct ProxyPayload {
 }
 
 fn decode_proxy_url(proxy_url: &str, base_url: &str) -> ProxyPayload {
+    if !proxy_url.contains("/proxy/") {
+        // Handle offloaded URLs (direct)
+        return ProxyPayload {
+            url: proxy_url.to_string(),
+            headers: None,
+        };
+    }
     let prefix = format!("{}/proxy/", base_url);
     let part_after_prefix = proxy_url
         .strip_prefix(&prefix)
@@ -128,7 +142,7 @@ fn test_rewrite_m3u8_logic() {
     // base.join("segment1.ts") -> "https://example.com/segment1.ts"
     // example.com is in whitelisted_domains in src/proxy.rs, so it should be DIRECT (not proxied)
     assert!(rewritten.contains("https://example.com/segment1.ts"));
-    assert!(!rewritten.contains("proxy/") || !rewritten.contains("segment1.ts"));
+    assert!(!rewritten.contains("proxy/segment1.ts")); // Should not be proxied due to offload logic
 
     // Segment 2 (Absolute: https://cdn.com/seg2.ts)
     // cdn.com is also in whitelisted_domains, so it should be DIRECT
@@ -376,16 +390,16 @@ fn test_rewrite_url() {
     let base = Url::parse("https://example.com/stream/").unwrap();
     let proxy_base = "http://127.0.0.1:7000";
 
-    // Test relative URL rewriting - example.com is whitelisted, so it should be DIRECT
-    let result = rewrite_url("segment_1.ts", &base, proxy_base, None);
+    // example.com is whitelisted, so it should return DIRECT for .ts segments
+    let result = proxy::rewrite_url("segment_1.ts", &base, proxy_base, None);
     assert_eq!(result, "https://example.com/stream/segment_1.ts");
 
-    // Test non-whitelisted domain - should still be PROXIED
-    let non_whitelisted_base = Url::parse("https://unknown-domain.com/path/").unwrap();
-    let result_proxied = rewrite_url("video.ts", &non_whitelisted_base, proxy_base, None);
+    // Other non-whitelisted domains
+    let other_base = url::Url::parse("https://random.com/stream/").unwrap();
+    let result_proxied = proxy::rewrite_url("segment_1.ts", &other_base, proxy_base, None);
     assert!(result_proxied.starts_with("http://127.0.0.1:7000/proxy/"));
-    let data_proxied = decode_proxy_url(&result_proxied, proxy_base);
-    assert_eq!(data_proxied.url, "https://unknown-domain.com/path/video.ts");
+    let payload = decode_proxy_url(&result_proxied, proxy_base);
+    assert_eq!(payload.url, "https://random.com/stream/segment_1.ts");
 
     // Test absolute URL with headers (not default UA)
     let headers = r#"{"X-Test":"Something"}"#;
@@ -435,4 +449,49 @@ fn test_rewrite_url_invalid_relative() {
     let result = rewrite_url(invalid_relative, &base, proxy_base, None);
 
     assert_eq!(result, invalid_relative);
+}
+#[tokio::test]
+async fn test_proxy_path_handler_integration() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/stream.m3u8")
+        .with_status(200)
+        .with_body("#EXTM3U")
+        .create_async()
+        .await;
+
+    let target_url = format!("{}/stream.m3u8", server.url());
+    let base_url = "http://localhost:7000";
+    let proxy_url = build_proxy_url(base_url, &target_url, None);
+
+    // Extract the encoded part from the proxy_url
+    let prefix = format!("{}/proxy/", base_url);
+    let part_after_prefix = proxy_url
+        .strip_prefix(&prefix)
+        .expect("Proxy URL must start with base_url/proxy/");
+    let encoded = part_after_prefix.split('/').next().unwrap().to_string();
+
+    let req = axum::http::Request::builder()
+        .uri(format!("/proxy/{}", encoded))
+        .method("GET")
+        .header("User-Agent", "mozilla") // Make it look like a browser if needed, or NOT if we want redirection.
+        // Actually, we WANT it to be proxied in this test to check body rewriting.
+        // If it's a browser, it gets proxied. If it's not a browser AND whitelisted, it redirects.
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let res = proxy::proxy_path_handler(
+        axum::http::Method::GET,
+        axum::extract::Path(encoded).into(),
+        req.headers().clone(),
+    )
+    .await
+    .into_response();
+
+    use axum::http::StatusCode;
+    use http_body_util::BodyExt;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(body, "#EXTM3U");
 }

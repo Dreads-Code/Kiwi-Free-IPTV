@@ -22,6 +22,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
   onChannelSelect,
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const cardsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   // This ref is used to prevent the IntersectionObserver from firing during a programmatic scroll,
   // which would cause an infinite scroll feedback loop.
@@ -35,7 +36,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 
     let debounceTimeoutId: number;
     const debouncedActivate = (id: string) => {
-      clearTimeout(debounceTimeoutId);
+      globalThis.clearTimeout(debounceTimeoutId);
       debounceTimeoutId = globalThis.setTimeout(() => {
         onChannelActivate(id);
       }, 150) as unknown as number;
@@ -46,27 +47,12 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
         // Ignore intersections that happen during a programmatic scroll
         if (isProgrammaticScrollActive.current) return;
 
-        let bestEntry: IntersectionObserverEntry | null = null;
-        let minDistance = Infinity;
-
-        const containerRect = scroller.getBoundingClientRect();
-        const containerCenter = containerRect.left + containerRect.width / 2;
-
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const rect = entry.boundingClientRect;
-            const entryCenter = rect.left + rect.width / 2;
-            const distance = Math.abs(entryCenter - containerCenter);
-
-            if (distance < minDistance) {
-              minDistance = distance;
-              bestEntry = entry;
-            }
-          }
-        }
-
-        if (bestEntry) {
-          const channelId = (bestEntry.target as HTMLElement).dataset.channelId;
+        // With snap-center and a tiny center margin, usually only one item intersects.
+        // We pick the first one that is currently intersecting the center line.
+        const centerEntry = entries.find((e) => e.isIntersecting);
+        if (centerEntry) {
+          const channelId = (centerEntry.target as HTMLElement).dataset
+            .channelId;
           if (channelId) {
             debouncedActivate(channelId);
           }
@@ -74,17 +60,19 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
       },
       {
         root: scroller,
-        threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
+        // Target a 1px vertical sliver in the center of the scroller
+        rootMargin: "0px -50% 0px -50%",
+        threshold: 0,
       },
     );
 
     observerRef.current = observer;
-    for (const child of scroller.children) {
-      observer.observe(child);
-    }
+    cardsRef.current.forEach((el) => {
+      observer.observe(el);
+    });
 
     return () => {
-      clearTimeout(debounceTimeoutId);
+      globalThis.clearTimeout(debounceTimeoutId);
       observer.disconnect();
     };
   }, [channels, onChannelActivate]);
@@ -93,9 +81,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
   useEffect(() => {
     if (!activeChannelId || !scrollerRef.current) return;
 
-    const cardElement = scrollerRef.current.querySelector(
-      `[data-channel-id="${activeChannelId}"]`,
-    );
+    const cardElement = cardsRef.current.get(activeChannelId);
     if (cardElement) {
       // Set a flag to disable the observer logic during the scroll animation
       isProgrammaticScrollActive.current = true;
@@ -108,7 +94,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 
       // Clear any existing timeout to handle rapid key presses
       if (scrollEndTimeout.current) {
-        clearTimeout(scrollEndTimeout.current);
+        globalThis.clearTimeout(scrollEndTimeout.current);
       }
 
       // After a delay, re-enable the observer logic. This timeout should be long enough
@@ -120,7 +106,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 
     return () => {
       if (scrollEndTimeout.current) {
-        clearTimeout(scrollEndTimeout.current);
+        globalThis.clearTimeout(scrollEndTimeout.current);
       }
     };
   }, [activeChannelId]);
@@ -143,6 +129,10 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
         {channels.map((channel) => (
           <DeckChannelCard
             key={channel.id}
+            ref={(el) => {
+              if (el) cardsRef.current.set(channel.id, el);
+              else cardsRef.current.delete(channel.id);
+            }}
             channel={channel}
             programmes={epg.get(channel.epg_id)}
             onSelect={onChannelSelect}

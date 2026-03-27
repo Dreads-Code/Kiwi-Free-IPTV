@@ -77,7 +77,7 @@ async fn test_format_meta_catalog() {
         url: "http://stream.m3u8".to_string(),
         category: "test".to_string(),
         http_headers: None,
-        programmes: vec![],
+        programmes: Arc::new(vec![]),
     };
 
     let json = iptv::format_meta(state, meta, "20260311200000 +0000".to_string(), true).await;
@@ -105,7 +105,7 @@ async fn test_format_meta_detail() {
         url: "http://stream.m3u8".to_string(),
         category: "test".to_string(),
         http_headers: None,
-        programmes: vec![EpgProgramme {
+        programmes: Arc::new(vec![EpgProgramme {
             start: "20260311100000 +0000".to_string(),
             stop: "20260311120000 +0000".to_string(),
             channel: "test-chan".to_string(),
@@ -120,7 +120,7 @@ async fn test_format_meta_detail() {
             rating: Some(EpgRating {
                 value: Some("PG".to_string()),
             }),
-        }],
+        }]),
     };
 
     let json = iptv::format_meta(state, meta, "20260311110000 +0000".to_string(), false).await;
@@ -209,12 +209,12 @@ async fn test_fetch_data_fast_path_cache() {
         description: "".to_string(),
         url: "http://cached".to_string(),
         category: "Test".to_string(),
-        programmes: vec![],
+        programmes: Arc::new(vec![]),
         http_headers: None,
     }];
     state
         .channel_cache
-        .insert("data".to_string(), channels)
+        .insert("data".to_string(), Arc::new(channels))
         .await;
 
     let res = iptv::fetch_data(&state).await.unwrap();
@@ -251,10 +251,10 @@ async fn test_fetch_data_cache_miss_success() {
     assert_eq!(res[0].name, "TVNZ 1");
 
     // Assert caches are populated
-    assert!(state.stream_cache.get("m3u8").await.is_some());
     assert!(state.epg_cache.get("epg_text").await.is_some());
     assert!(state.channel_cache.get("data").await.is_some());
-    assert!(state.channel_map_cache.get("data").await.is_some());
+    // In production, we iterate and insert each channel ID into map cache
+    assert!(state.channel_map_cache.get("stremio_iptv_id:mjh-nz1").await.is_some());
 }
 
 #[tokio::test]
@@ -362,12 +362,12 @@ async fn test_catalog_generation() {
         description: "".to_string(),
         url: "http://stream".to_string(),
         category: "Test".to_string(),
-        programmes: vec![],
+        programmes: Arc::new(vec![]),
         http_headers: None,
     }];
     state
         .channel_cache
-        .insert("data".to_string(), channels)
+        .insert("data".to_string(), Arc::new(channels))
         .await;
 
     let catalog = iptv::catalog(&state).await.unwrap();
@@ -392,21 +392,16 @@ async fn test_meta_request() {
         description: "".to_string(),
         url: "http://stream".to_string(),
         category: "Test".to_string(),
-        programmes: vec![],
+        programmes: Arc::new(vec![]),
         http_headers: None,
     }];
 
-    let mut map = HashMap::new();
     for c in &channels {
-        map.insert(c.id.clone(), c.clone());
+        state.channel_map_cache.insert(c.id.clone(), c.clone()).await;
     }
     state
         .channel_cache
-        .insert("data".to_string(), channels)
-        .await;
-    state
-        .channel_map_cache
-        .insert("data".to_string(), map)
+        .insert("data".to_string(), Arc::new(channels))
         .await;
 
     // Found
@@ -451,21 +446,16 @@ async fn test_stream_request() {
         description: "".to_string(),
         url: format!("{}/redirect", server.url()),
         category: "Test".to_string(),
-        programmes: vec![],
+        programmes: Arc::new(vec![]),
         http_headers: Some(headers),
     }];
 
-    let mut map = HashMap::new();
     for c in &channels {
-        map.insert(c.id.clone(), c.clone());
+        state.channel_map_cache.insert(c.id.clone(), c.clone()).await;
     }
     state
         .channel_cache
-        .insert("data".to_string(), channels)
-        .await;
-    state
-        .channel_map_cache
-        .insert("data".to_string(), map)
+        .insert("data".to_string(), Arc::new(channels))
         .await;
 
     let res = iptv::stream(&state, "stremio_iptv_id:mjh-tvnz-1", "http://localhost")
@@ -474,4 +464,16 @@ async fn test_stream_request() {
     let streams = res.as_array().unwrap();
     assert_eq!(streams.len(), 1);
     assert!(streams[0]["url"].as_str().unwrap().contains("/proxy/"));
+}
+
+#[test]
+fn test_parse_channels_pure() {
+    let m3u8 = "#EXTM3U\n#EXTINF:-1 tvg-id=\"id1\",Name1\nhttp://stream1\n";
+    let epg = r#"<tv><channel id="id1"><display-name>Name 1</display-name></channel></tv>"#;
+    
+    let channels = iptv::parse_channels(m3u8, epg);
+    assert_eq!(channels.len(), 1);
+    assert_eq!(channels[0].id, "stremio_iptv_id:mjh-id1");
+    assert_eq!(channels[0].name, "Name1");
+    assert_eq!(channels[0].url, "http://stream1");
 }

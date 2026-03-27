@@ -15,6 +15,7 @@ use quick_xml::de::from_str;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Hardcoded source URL for the M3U8 playlist.
 pub const M3U8_URL: &str = "https://i.mjh.nz/nz/raw-tv.m3u8";
@@ -89,7 +90,7 @@ pub struct ChannelMeta {
     pub url: String,
     pub category: String,
     #[serde(default)]
-    pub programmes: Vec<EpgProgramme>,
+    pub programmes: Arc<Vec<EpgProgramme>>,
     #[serde(default)]
     pub http_headers: Option<HashMap<String, String>>,
 }
@@ -254,7 +255,8 @@ pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
             };
 
             let epg_data = epg_map.get(&tvg_id);
-            let channel_programmes = programmes_map.get(&tvg_id).cloned().unwrap_or_default();
+            let channel_programmes =
+                Arc::new(programmes_map.get(&tvg_id).cloned().unwrap_or_default());
 
             let icon =
                 tvg_logo.or_else(|| epg_data.and_then(|e| e.icon.as_ref().map(|i| i.src.clone())));
@@ -319,7 +321,9 @@ pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
 #[cfg(not(target_arch = "wasm32"))]
 /// Fetches and processes M3U8 and EPG data into a collection of `ChannelMeta`.
 /// Uses heavy caching to minimize external requests.
-pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn std::error::Error>> {
+pub async fn fetch_data(
+    state: &AppState,
+) -> Result<Arc<Vec<ChannelMeta>>, Box<dyn std::error::Error>> {
     // Check if fully processed data is already cached
     if let Some(data) = state.channel_cache.get("data").await {
         return Ok(data);
@@ -351,23 +355,21 @@ pub async fn fetch_data(state: &AppState) -> Result<Vec<ChannelMeta>, Box<dyn st
         text
     };
 
-    // Use consolidated parsing logic
-    let channels = parse_channels(&m3u8_text, &epg_text);
+    let channels = Arc::new(parse_channels(&m3u8_text, &epg_text));
 
     // Populate caches
-    let mut map = HashMap::new();
-    for c in &channels {
-        map.insert(c.id.clone(), c.clone());
-    }
-
     state
         .channel_cache
         .insert("data".to_string(), channels.clone())
         .await;
-    state
-        .channel_map_cache
-        .insert("data".to_string(), map)
-        .await;
+
+    // Cache individual channels for fast lookup in meta/stream
+    for c in channels.iter() {
+        state
+            .channel_map_cache
+            .insert(c.id.clone(), c.clone())
+            .await;
+    }
 
     // Also keep the JSON cache for compatibility/other uses if needed
     if let Ok(json_str) = serde_json::to_string(&channels) {
@@ -393,10 +395,11 @@ pub async fn format_meta(
 ) -> serde_json::Value {
     let mut current_program = None;
     let now = now_str.as_str();
-    for p in &channel.programmes {
-        if p.start.as_str() <= now && p.stop.as_str() > now {
+    // Binary search for the current programme (programmes are chronologically ordered)
+    let idx = channel.programmes.partition_point(|p| p.stop.as_str() <= now);
+    if let Some(p) = channel.programmes.get(idx) {
+        if p.start.as_str() <= now {
             current_program = Some(p);
-            break;
         }
     }
 
@@ -510,8 +513,8 @@ pub async fn catalog(state: &AppState) -> Result<serde_json::Value, Box<dyn std:
 
     let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
 
-    for c in channels {
-        futures.push(format_meta(state.clone(), c, now_str.clone(), true));
+    for c in channels.iter() {
+        futures.push(format_meta(state.clone(), c.clone(), now_str.clone(), true));
     }
 
     let res = futures::future::join_all(futures).await;
@@ -524,13 +527,13 @@ pub async fn meta(
     state: &AppState,
     id: &str,
 ) -> Result<Option<serde_json::Value>, Box<dyn std::error::Error>> {
-    // Attempt O(1) lookup from the channel map cache
-    let channel = if let Some(map) = state.channel_map_cache.get("data").await {
-        map.get(id).cloned()
+    // Attempt O(1) lookup from the individual channel cache
+    let channel = if let Some(c) = state.channel_map_cache.get(id).await {
+        Some(c)
     } else {
-        // Cache miss, refresh all data
+        // Cache miss, refresh all data (which populates the map cache)
         let channels = fetch_data(state).await?;
-        channels.into_iter().find(|c| c.id == id)
+        channels.iter().find(|c| c.id == id).cloned()
     };
 
     let channel = match channel {
@@ -552,13 +555,13 @@ pub async fn stream(
     id: &str,
     base_url: &str,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    // Attempt O(1) lookup from the channel map cache
-    let channel = if let Some(map) = state.channel_map_cache.get("data").await {
-        map.get(id).cloned()
+    // Attempt O(1) lookup from the individual channel cache
+    let channel = if let Some(c) = state.channel_map_cache.get(id).await {
+        Some(c)
     } else {
-        // Cache miss, refresh all data
+        // Cache miss, refresh all data (which populates the map cache)
         let channels = fetch_data(state).await?;
-        channels.into_iter().find(|c| c.id == id)
+        channels.iter().find(|c| c.id == id).cloned()
     };
 
     let channel = match channel {
@@ -596,12 +599,12 @@ pub async fn stream(
 
     let now = now_str.as_str();
     let mut show_title = "Live TV".to_string();
-    for p in &channel.programmes {
-        if p.start.as_str() <= now && p.stop.as_str() > now {
+    let idx = channel.programmes.partition_point(|p| p.stop.as_str() <= now);
+    if let Some(p) = channel.programmes.get(idx) {
+        if p.start.as_str() <= now {
             if let Some(t) = &p.title {
                 show_title = t.to_string();
             }
-            break;
         }
     }
 

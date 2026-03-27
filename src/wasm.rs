@@ -45,3 +45,31 @@ pub fn process_icon_url(url: &str) -> Option<String> {
 pub fn is_safe_proxy_url(url: &str) -> bool {
     crate::proxy::is_safe_url(url)
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
+    fn test_greet() {
+        let result = greet("Developer");
+        assert!(result.contains("Hello, Developer!"));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_clean_show_title() {
+        assert_eq!(clean_show_title("Documentary: NZ - S01E01"), "Documentary: NZ");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_process_icon_url() {
+        let result = process_icon_url("https://i.mjh.nz/nz/channel.png");
+        assert!(result.is_some());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_is_safe_proxy_url() {
+        assert!(is_safe_proxy_url("https://i.mjh.nz/nz/playlist.m3u8"));
+        assert!(!is_safe_proxy_url("https://evil.com/malware"));
+    }
+}

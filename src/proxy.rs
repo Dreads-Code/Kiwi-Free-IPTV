@@ -366,8 +366,16 @@ pub async fn do_proxy(
                 .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
                 .map(|(_, v)| v.as_str())
                 .unwrap_or(APPLE_UA);
-            loop_headers.insert("User-Agent", HeaderValue::from_str(ua).unwrap());
-            loop_headers.insert("X-Forwarded-For", HeaderValue::from_str(&user_ip).unwrap());
+
+            if let Ok(ua_val) = HeaderValue::from_str(ua) {
+                loop_headers.insert("User-Agent", ua_val);
+            } else {
+                loop_headers.insert("User-Agent", HeaderValue::from_static(APPLE_UA));
+            }
+
+            if let Ok(ip_val) = HeaderValue::from_str(&user_ip) {
+                loop_headers.insert("X-Forwarded-For", ip_val);
+            }
 
             if current_url.contains("shinetv.co.nz") {
                 loop_headers.insert(
@@ -414,7 +422,13 @@ pub async fn do_proxy(
                     && let Some(loc) = res.headers().get("location")
                     && let Ok(loc_str) = loc.to_str()
                 {
-                    let base = Url::parse(&current_url).unwrap();
+                    let base = match Url::parse(&current_url) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            error!("Failed to parse current URL for redirect resolution: {}", e);
+                            break Ok(res); // Fallback to returning the redirect itself
+                        }
+                    };
                     if let Ok(next_url) = base.join(loc_str) {
                         let next_url_s = next_url.to_string();
                         if !is_safe_url(&next_url_s) {

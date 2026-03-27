@@ -141,3 +141,60 @@ async fn test_unsupported_resource_type() {
     let res_json: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(res_json, serde_json::json!({}));
 }
+
+#[tokio::test]
+async fn test_fetch_pass_through_handler() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("GET", "/external-resource")
+        .with_status(200)
+        .with_header("content-type", "text/plain")
+        .with_body("external content")
+        .create_async()
+        .await;
+
+    let app = build_router();
+    // Use a whitelisted domain for the test or one that passes our safety checks.
+    // By default, mockito server is on localhost, which is whitelisted in debug/test.
+    let url = format!("{}/external-resource", server.url());
+    let encoded_url = urlencoding::encode(&url);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/fetch?url={}", encoded_url))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .unwrap(),
+        "*"
+    );
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(body, "external content");
+}
+
+#[tokio::test]
+async fn test_fetch_pass_through_unsafe_url() {
+    let app = build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/fetch?url=https://evil-unwhitelisted.com/malware")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}

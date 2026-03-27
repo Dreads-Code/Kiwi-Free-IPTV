@@ -42,9 +42,9 @@ pub struct AppState {
     /// Client for TVMaze API integration.
     pub tvmaze_client: Arc<tvmaze::TvMazeClient>,
     /// Cache for processed channel lists.
-    pub channel_cache: Arc<moka::future::Cache<String, Vec<iptv::ChannelMeta>>>,
-    /// Cache for indexed channels (O(1) lookup).
-    pub channel_map_cache: Arc<moka::future::Cache<String, HashMap<String, iptv::ChannelMeta>>>,
+    pub channel_cache: Arc<moka::future::Cache<String, Arc<Vec<iptv::ChannelMeta>>>>,
+    /// Cache for individual channels indexed by ID (O(1) lookup).
+    pub channel_map_cache: Arc<moka::future::Cache<String, iptv::ChannelMeta>>,
     /// Base URL for the M3U8 playlist.
     pub m3u8_url: String,
     /// Base URL for the EPG source.
