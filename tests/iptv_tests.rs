@@ -12,7 +12,7 @@ fn create_mock_state() -> AppState {
         image_cache: Arc::new(moka::future::Cache::new(100)),
         tvmaze_client: Arc::new(tvmaze::TvMazeClient::new()),
         channel_cache: Arc::new(moka::future::Cache::new(100)),
-        channel_map_cache: Arc::new(moka::future::Cache::new(100)),
+        channel_index_cache: Arc::new(moka::future::Cache::new(100)),
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
     }
@@ -253,12 +253,13 @@ async fn test_fetch_data_cache_miss_success() {
     // Assert caches are populated
     assert!(state.epg_cache.get("epg_text").await.is_some());
     assert!(state.channel_cache.get("data").await.is_some());
-    // In production, we iterate and insert each channel ID into map cache
+    // The channel index cache should also be populated for O(1) lookups
     assert!(
         state
-            .channel_map_cache
-            .get("stremio_iptv_id:mjh-nz1")
+            .channel_index_cache
+            .get("data")
             .await
+            .and_then(|index| index.get("stremio_iptv_id:mjh-nz1").cloned())
             .is_some()
     );
 }
@@ -402,12 +403,17 @@ async fn test_meta_request() {
         http_headers: None,
     }];
 
-    for c in &channels {
-        state
-            .channel_map_cache
-            .insert(c.id.clone(), c.clone())
-            .await;
-    }
+    let channel_index = Arc::new(
+        channels
+            .iter()
+            .cloned()
+            .map(|channel| (channel.id.clone(), channel))
+            .collect(),
+    );
+    state
+        .channel_index_cache
+        .insert("data".to_string(), channel_index)
+        .await;
     state
         .channel_cache
         .insert("data".to_string(), Arc::new(channels))
@@ -459,12 +465,17 @@ async fn test_stream_request() {
         http_headers: Some(headers),
     }];
 
-    for c in &channels {
-        state
-            .channel_map_cache
-            .insert(c.id.clone(), c.clone())
-            .await;
-    }
+    let channel_index = Arc::new(
+        channels
+            .iter()
+            .cloned()
+            .map(|channel| (channel.id.clone(), channel))
+            .collect(),
+    );
+    state
+        .channel_index_cache
+        .insert("data".to_string(), channel_index)
+        .await;
     state
         .channel_cache
         .insert("data".to_string(), Arc::new(channels))

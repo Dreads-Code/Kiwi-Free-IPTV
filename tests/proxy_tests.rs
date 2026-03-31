@@ -174,6 +174,22 @@ fn test_get_base_url() {
     assert_eq!(get_base_url(&headers), "http://127.0.0.1:7000");
 }
 
+#[test]
+fn test_is_safe_url_allows_exact_and_subdomain_whitelist_matches() {
+    assert!(proxy::is_safe_url("https://example.com/playlist.m3u8"));
+    assert!(proxy::is_safe_url("https://sub.example.com/playlist.m3u8"));
+}
+
+#[test]
+fn test_is_safe_url_rejects_suffix_bypass_hosts() {
+    assert!(!proxy::is_safe_url(
+        "https://attackerexample.com/playlist.m3u8"
+    ));
+    assert!(!proxy::is_safe_url(
+        "https://example.com.evil.test/playlist.m3u8"
+    ));
+}
+
 #[tokio::test]
 async fn test_do_proxy_head_request() {
     let mut server = Server::new_async().await;

@@ -2,6 +2,8 @@
 //! This module provides the logic for proxying M3U8 and TS streams,
 //! handling MJH handshakes, surgical identity swapping, and M3U8 rewriting.
 
+use crate::utils::contains_ignore_ascii_case;
+
 #[cfg(not(target_arch = "wasm32"))]
 use axum::{
     body::Body,
@@ -24,16 +26,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
 
-fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    haystack
-        .as_bytes()
-        .windows(needle.len())
-        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
-}
-
 fn is_private_ip(ip: std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(ipv4) => {
@@ -49,6 +41,17 @@ fn is_private_ip(ip: std::net::IpAddr) -> bool {
                     .unwrap_or(false)
         }
     }
+}
+
+fn is_whitelisted_host(host: &str, whitelisted_domains: &[&str]) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+
+    whitelisted_domains.iter().any(|domain| {
+        host == *domain
+            || host
+                .strip_suffix(domain)
+                .is_some_and(|prefix| prefix.ends_with('.'))
+    })
 }
 
 pub fn is_safe_url(url_str: &str) -> bool {
@@ -119,7 +122,7 @@ pub fn is_safe_url(url_str: &str) -> bool {
             "referrer.com",
         ];
 
-        if whitelisted_domains.iter().any(|d| host.ends_with(d)) {
+        if is_whitelisted_host(host, &whitelisted_domains) {
             return true;
         }
     }

@@ -4,6 +4,7 @@
 pub mod iptv;
 pub mod proxy;
 pub mod tvmaze;
+pub mod utils;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -30,6 +31,9 @@ use tower_http::cors::CorsLayer;
 use url::Url;
 
 #[cfg(not(target_arch = "wasm32"))]
+const IMAGE_CACHE_MAX_CAPACITY: u64 = 2048;
+
+#[cfg(not(target_arch = "wasm32"))]
 /// Shared application state containing caches and external service clients.
 #[derive(Clone)]
 pub struct AppState {
@@ -43,8 +47,9 @@ pub struct AppState {
     pub tvmaze_client: Arc<tvmaze::TvMazeClient>,
     /// Cache for processed channel lists.
     pub channel_cache: Arc<moka::future::Cache<String, Arc<Vec<iptv::ChannelMeta>>>>,
-    /// Cache for individual channels indexed by ID (O(1) lookup).
-    pub channel_map_cache: Arc<moka::future::Cache<String, iptv::ChannelMeta>>,
+    /// Cache for a channel index keyed by ID (O(1) lookup).
+    pub channel_index_cache:
+        Arc<moka::future::Cache<String, Arc<HashMap<String, iptv::ChannelMeta>>>>,
     /// Base URL for the M3U8 playlist.
     pub m3u8_url: String,
     /// Base URL for the EPG source.
@@ -71,6 +76,7 @@ pub fn build_router() -> Router {
     let image_cache = Arc::new(
         moka::future::Cache::builder()
             .time_to_live(std::time::Duration::from_secs(86400 * 7)) // 7 days for images
+            .max_capacity(IMAGE_CACHE_MAX_CAPACITY)
             .build(),
     );
 
@@ -82,7 +88,7 @@ pub fn build_router() -> Router {
             .build(),
     );
 
-    let channel_map_cache = Arc::new(
+    let channel_index_cache = Arc::new(
         moka::future::Cache::builder()
             .time_to_live(std::time::Duration::from_secs(3600))
             .build(),
@@ -94,7 +100,7 @@ pub fn build_router() -> Router {
         image_cache,
         tvmaze_client,
         channel_cache,
-        channel_map_cache,
+        channel_index_cache,
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
     };

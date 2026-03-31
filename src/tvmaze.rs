@@ -2,6 +2,7 @@
 //! This module provides the client and utilities for fetching show artwork
 //! and cleaning show titles for reliable search results.
 
+use crate::utils::contains_ignore_ascii_case;
 use log::debug;
 #[cfg(not(target_arch = "wasm32"))]
 use log::{info, warn};
@@ -218,16 +219,6 @@ pub fn process_epg_icon_url(url: &str) -> Option<String> {
     let is_image_query = image_extensions
         .iter()
         .any(|ext| query.contains(&ext[1..]) || contains_ignore_ascii_case(query, "format="));
-
-    fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
-        if needle.is_empty() {
-            return true;
-        }
-        haystack
-            .as_bytes()
-            .windows(needle.len())
-            .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
-    }
 
     let is_trusted_cdn = processed_url.contains("cdn.fullscreen.nz");
 
