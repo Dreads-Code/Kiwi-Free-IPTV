@@ -35,30 +35,32 @@ describe("CustomVideoControls", () => {
 
     expect(screen.getByText("Test Channel")).toBeDefined();
     expect(screen.getByText("Test Programme")).toBeDefined();
-    expect(screen.getByText("play_arrow")).toBeDefined();
-    expect(screen.getByText("volume_up")).toBeDefined();
-    expect(screen.getByText("fullscreen")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Play" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Mute" })).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Enter fullscreen" }),
+    ).toBeDefined();
   });
 
   it("should correctly toggle play/pause icon", () => {
     const { rerender } = render(
       <CustomVideoControls {...defaultProps} isPlaying={true} />,
     );
-    expect(screen.getByText("pause")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeDefined();
 
     rerender(<CustomVideoControls {...defaultProps} isPlaying={false} />);
-    expect(screen.getByText("play_arrow")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Play" })).toBeDefined();
   });
 
   it("should call onPlayPause when play button clicked", () => {
     render(<CustomVideoControls {...defaultProps} />);
-    fireEvent.click(screen.getByText("play_arrow"));
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(defaultProps.onPlayPause).toHaveBeenCalled();
   });
 
   it("should call onMuteToggle when volume button clicked", () => {
     render(<CustomVideoControls {...defaultProps} />);
-    fireEvent.click(screen.getByText("volume_up"));
+    fireEvent.click(screen.getByRole("button", { name: "Mute" }));
     expect(defaultProps.onMuteToggle).toHaveBeenCalled();
   });
 

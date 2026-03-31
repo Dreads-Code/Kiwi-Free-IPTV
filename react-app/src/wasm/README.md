@@ -11,13 +11,17 @@ A high-performance, unified solution for streaming free-to-air New Zealand TV. T
 We provide a consistent and lightning-fast experience for streaming free-to-air New Zealand TV through either a Web Player or a Stremio addon.
 
 ### 1. 📺 Stremio Addon
+
 A native Stremio integration that provides rich metadata, landscape posters, and reliable streaming to any Stremio-capable device.
+
 - **Rich EPG**: Instant updates for currently airing programs on the Discover pane.
 - **Smart Sorting**: Channels ordered to match the official NZ Freeview layout.
 - **Enhanced Metadata**: IMDb ratings, genres, and age classifications.
 
 ### 2. 📱 TV Web Application
+
 A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
+
 - **Premium UI**: Dark-mode focused, glassmorphic design with smooth micro-animations.
 - **Integrated Player**: Custom HLS player with adaptive quality and picture-in-picture.
 - **Zero Bloat**: Consumed pre-processed data from the Rust backend, eliminating browser-side XML parsing.
@@ -28,10 +32,11 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 
 > [!IMPORTANT]
 > The following channels are **region-locked** and will only function if your IP address is within **New Zealand**:
+>
 > - **Three**
 > - **Bravo**
 > - **The Edge TV**
-> 
+>
 > If you are outside of New Zealand, a **VPN** connected to a New Zealand server is required to stream these channels.
 
 ---

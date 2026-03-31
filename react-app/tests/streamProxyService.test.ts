@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
 
 import {
   isAllowedUrl,
+  applyProxyRules,
   decodeProxyUrl,
+  isProxiedUrl,
   needsDirectPlay,
   isHighConfidenceDirect,
   resolveStreamUrl,
@@ -56,10 +58,59 @@ describe("streamProxyService", () => {
   });
 
   describe("applyProxyRules", () => {
-    // ... (rest of applyProxyRules is fine)
+    it("should return /proxy/<encoded> for a normal URL", () => {
+      const result = applyProxyRules("https://example.com/stream.m3u8");
+      expect(result).toMatch(/^\/proxy\//);
+    });
+
+    // -----------------------------------------------------------------------
+    // streamProxyService.ts:51 – catch block when btoa / JSON.stringify fails
+    // -----------------------------------------------------------------------
+    it("should fall back to the original URL when encoding throws (line 51)", () => {
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      // Force btoa to throw so the catch block is exercised
+      vi.stubGlobal("btoa", () => {
+        throw new Error("btoa not available");
+      });
+
+      const url = "https://example.com/stream.m3u8";
+      const result = applyProxyRules(url);
+
+      expect(result).toBe(url);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Failed to encode proxy payload:",
+        expect.any(Error),
+      );
+
+      vi.unstubAllGlobals();
+      consoleErrorSpy.mockRestore();
+    });
   });
 
-  // ...
+  describe("isProxiedUrl", () => {
+    it("should return true for URLs containing /api/proxy", () => {
+      expect(isProxiedUrl("https://example.com/api/proxy/stream")).toBe(true);
+      expect(isProxiedUrl("/api/proxy/abc123")).toBe(true);
+    });
+
+    it("should return true for URLs containing /proxy/", () => {
+      expect(isProxiedUrl("/proxy/abc123")).toBe(true);
+      expect(isProxiedUrl("https://example.com/proxy/encoded")).toBe(true);
+    });
+
+    it("should return false for regular stream URLs", () => {
+      expect(isProxiedUrl("https://example.com/stream.m3u8")).toBe(false);
+      expect(isProxiedUrl("https://i.mjh.nz/nz.m3u8")).toBe(false);
+      expect(isProxiedUrl("https://fullscreen.nz/live")).toBe(false);
+    });
+
+    it("should return false for empty string", () => {
+      expect(isProxiedUrl("")).toBe(false);
+    });
+  });
 
   describe("needsDirectPlay", () => {
     it("should return true for known direct play domains", () => {

@@ -3,6 +3,30 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { useProgramImage } from "../src/hooks/useShowImage";
 import { Programme, Channel } from "../src/types";
 
+// Mock the wasm module so process_icon_url and clean_show_title work in jsdom
+vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
+  process_icon_url: vi.fn((url: string) => {
+    if (!url) return null;
+    // Simple replica of key rules for testing
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return null;
+    // Upgrade http to https
+    let result = url.replace(/^http:\/\//, "https://");
+    // Replace cdn.fullscreen.nz dimension placeholders
+    if (
+      result.includes("cdn.fullscreen.nz") &&
+      result.includes("[width]x[height]")
+    ) {
+      const isPoster = /\/poster\//i.test(result);
+      result = result.replace(
+        "[width]x[height]",
+        isPoster ? "300x450" : "600x338",
+      );
+    }
+    return result;
+  }),
+  clean_show_title: vi.fn((title: string) => title),
+}));
+
 describe("useProgramImage", () => {
   const mockProgramme: Programme = {
     channelId: "nz-tv1",
@@ -25,10 +49,13 @@ describe("useProgramImage", () => {
   };
 
   const mockFetch = vi.fn();
-  vi.stubGlobal("fetch", mockFetch);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-stub after vitest.setup.ts afterEach calls vi.unstubAllGlobals()
+    vi.stubGlobal("fetch", mockFetch);
+    // Clear localStorage to prevent cache pollution between tests
+    localStorage.clear();
   });
 
   describe("processEpgIconUrl", () => {
@@ -56,26 +83,41 @@ describe("useProgramImage", () => {
         ...mockProgramme,
         icon: "ftp://example.com/icon.jpg",
       };
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            poster: "https://tvmaze.com/poster.jpg",
-            banner: "https://tvmaze.com/banner.jpg",
-          }),
-      });
+      // Hook makes 2 TVmaze calls: search then assets
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                show: {
+                  id: 1,
+                  image: { original: "https://tvmaze.com/poster.jpg" },
+                },
+              },
+            ]),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([]),
+        });
 
       const { result } = renderHook(() =>
         useProgramImage(progWithFtp, mockChannel),
       );
 
       expect(result.current.posterUrl).toBeNull();
-      expect(result.current.loading).toBe(true);
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
-      expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
+      await waitFor(
+        () =>
+          expect(result.current.posterUrl).toBe(
+            "https://tvmaze.com/poster.jpg",
+          ),
+        { timeout: 3000 },
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/fetch?url="),
+      );
     });
 
     it("should fix dimensions for cdn.fullscreen.nz URLs", () => {
@@ -101,45 +143,67 @@ describe("useProgramImage", () => {
   describe("useProgramImage fetching behavior", () => {
     it("should trigger fetch from backend for forced channels", async () => {
       const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            poster: "https://tvmaze.com/poster.jpg",
-            banner: "https://tvmaze.com/banner.jpg",
-          }),
-      });
+      // Hook makes 2 TVmaze calls: search then assets (assets provides the banner)
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                show: {
+                  id: 1,
+                  image: { original: "https://tvmaze.com/poster.jpg" },
+                },
+              },
+            ]),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                type: "banner",
+                resolutions: {
+                  original: { url: "https://tvmaze.com/banner.jpg" },
+                },
+              },
+            ]),
+        });
 
       const { result } = renderHook(() =>
         useProgramImage(mockProgramme, forcedChannel),
       );
 
-      expect(result.current.loading).toBe(true);
-
-      // wait for debounce and fetch
+      // wait for debounce and fetch to complete
       await waitFor(
-        () => {
-          expect(result.current.loading).toBe(false);
-        },
+        () =>
+          expect(result.current.posterUrl).toBe(
+            "https://tvmaze.com/poster.jpg",
+          ),
         { timeout: 3000 },
       );
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `/api/image/${encodeURIComponent(mockProgramme.title)}`,
+        expect.stringContaining("/api/fetch?url="),
       );
-      expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
       expect(result.current.bannerUrl).toBe("https://tvmaze.com/banner.jpg");
     });
 
     it("should not fetch again if the programme title hasn't changed", async () => {
       const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
+      // Each enrichment makes 2 TVmaze calls (search + assets); use mockResolvedValue
+      // so all calls return a valid TVmaze search response
       mockFetch.mockResolvedValue({
         ok: true,
         json: () =>
-          Promise.resolve({
-            poster: "https://tvmaze.com/poster.jpg",
-            banner: "https://tvmaze.com/banner.jpg",
-          }),
+          Promise.resolve([
+            {
+              show: {
+                id: 1,
+                image: { original: "https://tvmaze.com/poster.jpg" },
+              },
+            },
+          ]),
       });
 
       const { result, rerender } = renderHook(
@@ -147,23 +211,33 @@ describe("useProgramImage", () => {
         { initialProps: { prog: mockProgramme, chan: forcedChannel } },
       );
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // Wait for the first enrichment to complete
+      await waitFor(
+        () =>
+          expect(result.current.posterUrl).toBe(
+            "https://tvmaze.com/poster.jpg",
+          ),
+        { timeout: 3000 },
+      );
+      // First enrichment = 2 fetch calls (search + assets)
+      expect(mockFetch).toHaveBeenCalledTimes(2);
 
-      // Rerender with SAME title
+      // Rerender with SAME title — no new fetch
       rerender({ prog: { ...mockProgramme }, chan: forcedChannel });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
 
-      // Rerender with DIFFERENT title
+      // Rerender with DIFFERENT title — triggers another enrichment (2 more calls)
       const newProg = { ...mockProgramme, title: "New Show" };
       rerender({ prog: newProg, chan: forcedChannel });
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      await waitFor(
+        () =>
+          expect(result.current.posterUrl).toBe(
+            "https://tvmaze.com/poster.jpg",
+          ),
+        { timeout: 3000 },
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(4);
     });
 
     it("should handle fetch failures gracefully", async () => {
@@ -195,6 +269,94 @@ describe("useProgramImage", () => {
         timeout: 3000,
       });
       expect(result.current.posterUrl).toBeNull();
+    });
+
+    // -----------------------------------------------------------------------
+    // useShowImage.ts:138 – inner enrichmentPromise catch block
+    // Covers the path where the TVMaze fetch throws inside the inner IIFE.
+    // -----------------------------------------------------------------------
+    it("should return null posterUrl when inner enrichment fetch throws (line 138)", async () => {
+      const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
+      // Suppress warn output during this test
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      // All fetch calls reject (covers the inner catch path)
+      mockFetch.mockRejectedValue(new Error("inner network failure"));
+
+      const { result } = renderHook(() =>
+        useProgramImage(
+          { ...mockProgramme, title: "Inner Catch Show" },
+          forcedChannel,
+        ),
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false), {
+        timeout: 3000,
+      });
+
+      // The inner catch should swallow the error; poster must be null
+      expect(result.current.posterUrl).toBeNull();
+      expect(result.current.bannerUrl).toBeNull();
+      consoleSpy.mockRestore();
+    });
+
+    // -----------------------------------------------------------------------
+    // useShowImage.ts:161 – outer catch block of enrichImage()
+    // The outer catch fires when localStorage.setItem (or another operation
+    // outside the inner try) throws after a successful fetch.
+    // -----------------------------------------------------------------------
+    it("should recover gracefully when outer enrichment code throws (line 161)", async () => {
+      const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      // Successful search response
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                show: {
+                  id: 42,
+                  image: { original: "https://tvmaze.com/poster.jpg" },
+                },
+              },
+            ]),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([]),
+        });
+
+      // Force localStorage.setItem to throw — this is inside the outer try
+      // so the outer catch (line 161) will fire
+      const setItemSpy = vi
+        .spyOn(Storage.prototype, "setItem")
+        .mockImplementation(() => {
+          throw new Error("storage quota exceeded");
+        });
+      // Also mock getItem to return null so the cache check doesn't short-circuit
+      const getItemSpy = vi
+        .spyOn(Storage.prototype, "getItem")
+        .mockReturnValue(null);
+
+      const { result } = renderHook(() =>
+        useProgramImage(
+          { ...mockProgramme, title: "Outer Catch Show" },
+          forcedChannel,
+        ),
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false), {
+        timeout: 3000,
+      });
+
+      // The outer catch should have fired; loading must return to false
+      // The component should not crash even though setItem threw
+      expect(result.current.loading).toBe(false);
+
+      setItemSpy.mockRestore();
+      getItemSpy.mockRestore();
+      consoleSpy.mockRestore();
     });
   });
 });

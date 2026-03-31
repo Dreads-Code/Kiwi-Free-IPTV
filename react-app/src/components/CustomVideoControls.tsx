@@ -73,6 +73,7 @@ const VolumeControl: React.FC<{
     >
       <button
         onClick={onMuteToggle}
+        aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
         className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
       >
         {getVolumeIcon()}
@@ -332,6 +333,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
           <div className="flex items-center gap-1 md:gap-3">
             <button
               onClick={onPlayPause}
+              aria-label={isPlaying ? "Pause" : "Play"}
               className="group/btn flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition-all hover:scale-105 hover:bg-white/20"
             >
               {isPlaying ? (
@@ -412,6 +414,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
             )}
             <button
               onClick={onFullscreenToggle}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               className="flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10"
             >
               {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
