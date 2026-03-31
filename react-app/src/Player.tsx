@@ -355,12 +355,11 @@ const Player: React.FC = () => {
 
   // Push state to history when a modal opens
   useEffect(() => {
-    const depth = [
-      !!playingChannel,
-      !!detailData,
-      !!scheduleViewConfig.isOpen,
-      !!isStremioOpen,
-    ].filter(Boolean).length;
+    const depth =
+      Number(Boolean(playingChannel)) +
+      Number(Boolean(detailData)) +
+      Number(scheduleViewConfig.isOpen) +
+      Number(Boolean(isStremioOpen));
 
     if (depth > modalDepthRef.current) {
       globalThis.history.pushState({ isModal: true, depth }, "");
