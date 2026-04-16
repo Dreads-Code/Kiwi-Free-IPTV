@@ -1,10 +1,15 @@
+use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use base64::Engine as _;
+use iptv_nz_addon_rust::AppState;
+use iptv_nz_addon_rust::iptv;
 use iptv_nz_addon_rust::proxy::{self, build_proxy_url, get_base_url};
+use iptv_nz_addon_rust::tvmaze;
 use mockito::Server;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Deserialize)]
 struct ProxyPayload {
@@ -207,7 +212,9 @@ async fn test_do_proxy_head_request() {
 
     // Call do_proxy with HEAD
     use axum::http::{Method, StatusCode};
-    let response = proxy::do_proxy(Method::HEAD, &target_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let response =
+        proxy::do_proxy(&client, Method::HEAD, &target_url, None, &request_headers).await;
 
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
@@ -238,7 +245,8 @@ async fn test_do_proxy_ts_segment() {
     request_headers.insert("host", "localhost".parse().unwrap());
 
     use axum::http::Method;
-    let response = proxy::do_proxy(Method::GET, &target_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let response = proxy::do_proxy(&client, Method::GET, &target_url, None, &request_headers).await;
 
     assert_eq!(
         response.headers().get("content-type").unwrap(),
@@ -280,7 +288,9 @@ async fn test_do_proxy_mjh_handshake() {
     request_headers.insert("host", "localhost".parse().unwrap());
 
     use axum::http::Method;
-    let _response = proxy::do_proxy(Method::GET, &mjh_fake_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let _response =
+        proxy::do_proxy(&client, Method::GET, &mjh_fake_url, None, &request_headers).await;
 
     // The assertions are implicitly in the mock expectations (matchers and visits)
 }
@@ -304,8 +314,15 @@ async fn test_do_proxy_spoofing() {
     let payload = r#"{"User-Agent":"CustomUA"}"#;
 
     use axum::http::Method;
-    let _response =
-        proxy::do_proxy(Method::GET, &target_url, Some(payload), &request_headers).await;
+    let client = reqwest::Client::new();
+    let _response = proxy::do_proxy(
+        &client,
+        Method::GET,
+        &target_url,
+        Some(payload),
+        &request_headers,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -323,7 +340,9 @@ async fn test_do_proxy_referer_injection() {
     request_headers.insert("host", "localhost".parse().unwrap());
 
     use axum::http::Method;
-    let _response = proxy::do_proxy(Method::GET, &target_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let _response =
+        proxy::do_proxy(&client, Method::GET, &target_url, None, &request_headers).await;
 }
 
 #[tokio::test]
@@ -340,7 +359,8 @@ async fn test_do_proxy_upstream_failure() {
     request_headers.insert("host", "localhost".parse().unwrap());
 
     use axum::http::{Method, StatusCode};
-    let response = proxy::do_proxy(Method::GET, &target_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let response = proxy::do_proxy(&client, Method::GET, &target_url, None, &request_headers).await;
     // Proxies 500 as is (with some logging)
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
@@ -362,7 +382,8 @@ async fn test_do_proxy_m3u8_rewriting() {
     request_headers.insert("host", "localhost:7000".parse().unwrap());
 
     use axum::http::Method;
-    let response = proxy::do_proxy(Method::GET, &target_url, None, &request_headers).await;
+    let client = reqwest::Client::new();
+    let response = proxy::do_proxy(&client, Method::GET, &target_url, None, &request_headers).await;
 
     let body_bytes = axum::body::to_bytes(response.into_body(), 1000)
         .await
@@ -478,7 +499,20 @@ async fn test_proxy_path_handler_integration() {
         .body(axum::body::Body::empty())
         .unwrap();
 
+    let state = AppState {
+        stream_cache: Arc::new(moka::future::Cache::new(100)),
+        epg_cache: Arc::new(moka::future::Cache::new(100)),
+        image_cache: Arc::new(moka::future::Cache::new(100)),
+        tvmaze_client: Arc::new(tvmaze::TvMazeClient::new()),
+        channel_cache: Arc::new(moka::future::Cache::new(100)),
+        channel_index_cache: Arc::new(moka::future::Cache::new(100)),
+        m3u8_url: iptv::M3U8_URL.to_string(),
+        epg_url: iptv::EPG_URL.to_string(),
+        client: Arc::new(reqwest::Client::new()),
+    };
+
     let res = proxy::proxy_path_handler(
+        State(state),
         axum::http::Method::GET,
         axum::extract::Path(encoded),
         req.headers().clone(),

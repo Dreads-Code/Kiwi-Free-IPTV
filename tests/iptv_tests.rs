@@ -15,6 +15,12 @@ fn create_mock_state() -> AppState {
         channel_index_cache: Arc::new(moka::future::Cache::new(100)),
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
+        client: Arc::new(
+            reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
+        ),
     }
 }
 
@@ -148,7 +154,8 @@ async fn test_make_request_success() {
         .await;
 
     let url = server.url();
-    let res = iptv::make_request(&url, 3).await;
+    let client = reqwest::Client::new();
+    let res = iptv::make_request(&client, &url, 3).await;
     assert!(res.is_ok());
     assert_eq!(res.unwrap(), "success");
 }
@@ -174,7 +181,8 @@ async fn test_make_request_retry_success() {
         .await;
 
     let url = server.url();
-    let res = iptv::make_request(&url, 3).await;
+    let client = reqwest::Client::new();
+    let res = iptv::make_request(&client, &url, 3).await;
     assert!(res.is_ok());
     assert_eq!(res.unwrap(), "success after retry");
 }
@@ -190,7 +198,8 @@ async fn test_make_request_exhausted_retries() {
         .await;
 
     let url = server.url();
-    let res = iptv::make_request(&url, 2).await;
+    let client = reqwest::Client::new();
+    let res = iptv::make_request(&client, &url, 2).await;
     assert!(res.is_err());
 }
 

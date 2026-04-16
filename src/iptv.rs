@@ -43,9 +43,6 @@ struct Tv {
 struct EpgChannel {
     #[serde(rename = "@id")]
     id: String,
-    #[allow(dead_code)]
-    #[serde(rename = "display-name")]
-    display_names: Vec<String>,
     icon: Option<EpgIcon>,
 }
 
@@ -105,8 +102,11 @@ pub struct ChannelMeta {
 #[cfg(not(target_arch = "wasm32"))]
 /// Makes an HTTP GET request with a retry mechanism.
 /// Retries for both network errors and non-success HTTP status codes.
-pub async fn make_request(url: &str, retries: u32) -> Result<String, reqwest::Error> {
-    let client = Client::new();
+pub async fn make_request(
+    client: &Client,
+    url: &str,
+    retries: u32,
+) -> Result<String, reqwest::Error> {
     let mut attempt = 0;
     loop {
         match client
@@ -382,7 +382,7 @@ pub async fn fetch_data(
         cached
     } else {
         info!("Refreshing M3U8 data...");
-        let text = make_request(&state.m3u8_url, 3).await?;
+        let text = make_request(state.client.as_ref(), &state.m3u8_url, 3).await?;
         state
             .stream_cache
             .insert("m3u8".to_string(), text.clone())
@@ -395,7 +395,7 @@ pub async fn fetch_data(
         cached
     } else {
         info!("Refreshing EPG data...");
-        let text = make_request(&state.epg_url, 3).await?;
+        let text = make_request(state.client.as_ref(), &state.epg_url, 3).await?;
         state
             .epg_cache
             .insert("epg_text".to_string(), text.clone())
@@ -602,9 +602,8 @@ pub async fn stream(
     let mut stream_url = channel.url.clone();
 
     // Pre-resolve MJH redirects to provide the final stream URL to Stremio
-    if let Ok(res) = Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?
+    if let Ok(res) = state
+        .client
         .get(&channel.url)
         .header("User-Agent", crate::proxy::BROWSER_UA)
         .send()

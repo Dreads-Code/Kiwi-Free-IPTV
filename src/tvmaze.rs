@@ -160,19 +160,14 @@ pub fn clean_title_for_search(title: &str) -> String {
 
     let regex_year = regex::Regex::new(r"\s{0,5}\(\d{4}\)$").unwrap();
     let regex_state = regex::Regex::new(r"(?i)\s{0,5}\((?:Premiere|New|Final|Repeat)\)$").unwrap();
+    let regex_season = regex::Regex::new(r"(?i)\s*-\s*s\d+e\d+.*$").unwrap();
 
     loop {
         last_cleaned = cleaned.clone();
-        cleaned = regex_year
-            .replace(&cleaned, "")
-            .to_string()
-            .trim()
-            .to_string();
-        cleaned = regex_state
-            .replace(&cleaned, "")
-            .to_string()
-            .trim()
-            .to_string();
+        cleaned = regex_year.replace(&cleaned, "").to_string();
+        cleaned = regex_state.replace(&cleaned, "").to_string();
+        cleaned = regex_season.replace(&cleaned, "").to_string();
+        cleaned = cleaned.trim().to_string();
         if cleaned == last_cleaned {
             break;
         }

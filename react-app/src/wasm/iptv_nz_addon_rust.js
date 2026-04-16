@@ -169,11 +169,10 @@ export function rewrite_playlist(
     wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
   }
 }
-
 function __wbg_get_imports() {
   const import0 = {
     __proto__: null,
-    __wbg_Error_83742b46f01ce22d: function (arg0, arg1) {
+    __wbg_Error_960c155d3d49e4c2: function (arg0, arg1) {
       const ret = Error(getStringFromWasm0(arg0, arg1));
       return ret;
     },
@@ -188,11 +187,11 @@ function __wbg_get_imports() {
       getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
       getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
     },
-    __wbg___wbindgen_is_string_7ef6b97b02428fae: function (arg0) {
+    __wbg___wbindgen_is_string_6df3bf7ef1164ed3: function (arg0) {
       const ret = typeof arg0 === "string";
       return ret;
     },
-    __wbg___wbindgen_throw_6ddd609b62940d55: function (arg0, arg1) {
+    __wbg___wbindgen_throw_6b64449b9b9ed33c: function (arg0, arg1) {
       throw new Error(getStringFromWasm0(arg0, arg1));
     },
     __wbg_error_a6fa202b58aa1cd3: function (arg0, arg1) {
@@ -210,25 +209,25 @@ function __wbg_get_imports() {
       const ret = new Error();
       return ret;
     },
-    __wbg_new_49d5571bd3f0c4d4: function () {
+    __wbg_new_34d45cc8e36aaead: function () {
       const ret = new Map();
       return ret;
     },
-    __wbg_new_a70fbab9066b301f: function () {
+    __wbg_new_682678e2f47e32bc: function () {
       const ret = new Array();
       return ret;
     },
-    __wbg_new_ab79df5bd7c26067: function () {
+    __wbg_new_aa8d0fa9762c29bd: function () {
       const ret = new Object();
       return ret;
     },
-    __wbg_set_282384002438957f: function (arg0, arg1, arg2) {
+    __wbg_set_3bf1de9fab0cd644: function (arg0, arg1, arg2) {
       arg0[arg1 >>> 0] = arg2;
     },
     __wbg_set_6be42768c690e380: function (arg0, arg1, arg2) {
       arg0[arg1] = arg2;
     },
-    __wbg_set_bf7251625df30a02: function (arg0, arg1, arg2) {
+    __wbg_set_fde2cec06c23692b: function (arg0, arg1, arg2) {
       const ret = arg0.set(arg1, arg2);
       return ret;
     },

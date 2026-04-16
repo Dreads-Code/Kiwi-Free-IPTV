@@ -46,6 +46,24 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 
 ---
 
+## 💻 Development
+
+### Prerequisites
+- **Rust**: [Install Rust](https://www.rust-lang.org/tools/install)
+- **Node.js**: [Install Node.js](https://nodejs.org/)
+
+### Root Commands
+You can manage the entire project (backend and frontend) from the root directory:
+
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Starts both the Rust backend and React frontend concurrently. |
+| `npm run build` | Builds the WASM engine, the backend binary, and the React production bundle. |
+| `npm run lint` | Runs `cargo clippy` and `eslint` for both codebases. |
+| `npm run fmt` | Formats both Rust and React code according to project standards. |
+
+---
+
 ### 4. 🙏 Credits & Acknowledgments
 
 - **Matt Huisman**: Huge thanks to [Matt Huisman](https://www.matthuisman.nz/) for providing the raw IPTV playlists and EPG data. This project would not be possible without his brilliant work.

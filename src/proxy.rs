@@ -5,9 +5,11 @@
 use crate::utils::contains_ignore_ascii_case;
 
 #[cfg(not(target_arch = "wasm32"))]
+use crate::AppState;
+#[cfg(not(target_arch = "wasm32"))]
 use axum::{
     body::Body,
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -24,7 +26,10 @@ use reqwest::Client;
 use std::collections::HashMap;
 #[cfg(not(target_arch = "wasm32"))]
 use std::str::FromStr;
+use std::sync::OnceLock;
 use url::Url;
+
+static RE_URI: OnceLock<regex::Regex> = OnceLock::new();
 
 fn is_private_ip(ip: std::net::IpAddr) -> bool {
     match ip {
@@ -152,6 +157,7 @@ pub struct ProxyPathData {
 /// Path-based proxy handler: `/proxy/{base64url-encoded JSON}`.
 /// Decodes the payload and handles stream redirection or proxying.
 pub async fn proxy_path_handler(
+    State(state): State<AppState>,
     method: Method,
     Path(remainder): Path<String>,
     request_headers: HeaderMap,
@@ -223,17 +229,26 @@ pub async fn proxy_path_handler(
         .headers
         .as_ref()
         .map(|h| serde_json::to_string(h).unwrap_or_default());
-    do_proxy(method, &data.url, headers_json.as_deref(), &request_headers).await
+    do_proxy(
+        state.client.as_ref(),
+        method,
+        &data.url,
+        headers_json.as_deref(),
+        &request_headers,
+    )
+    .await
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 /// Handler for the legacy query-based proxy endpoint.
 pub async fn proxy_handler(
+    State(state): State<AppState>,
     method: Method,
     Query(query): Query<ProxyQuery>,
     request_headers: HeaderMap,
 ) -> impl IntoResponse {
     do_proxy(
+        state.client.as_ref(),
         method,
         &query.url,
         query.headers.as_deref(),
@@ -263,17 +278,13 @@ pub fn get_base_url(headers: &HeaderMap) -> String {
 #[cfg(not(target_arch = "wasm32"))]
 /// Executes the core proxy logic, including header injection and MJH handshake.
 pub async fn do_proxy(
+    client: &Client,
     method: Method,
     target_url: &str,
     headers_str: Option<&str>,
     request_headers: &HeaderMap,
 ) -> Response {
     let base_url = get_base_url(request_headers);
-
-    let client = Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
 
     let upstream_method = if method == Method::HEAD {
         Method::GET
@@ -316,14 +327,9 @@ pub async fn do_proxy(
 
     // MJH Handshake: i.mjh.nz is sensitive to region/fingerprinting.
     if current_url.contains("i.mjh.nz") {
-        let res_client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap();
-
         let success_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
-        if let Ok(res) = res_client
+        if let Ok(res) = client
             .get(&current_url)
             .header("User-Agent", success_ua)
             .send()
@@ -563,7 +569,7 @@ pub fn rewrite_m3u8(
     };
 
     let mut output = String::new();
-    let re = regex::Regex::new(r#"URI=(["'])([^"']+)["']"#).unwrap();
+    let re = RE_URI.get_or_init(|| regex::Regex::new(r#"URI=(["'])([^"']+)["']"#).unwrap());
 
     for line in text.lines() {
         let trimmed = line.trim();

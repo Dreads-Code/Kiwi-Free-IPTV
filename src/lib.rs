@@ -54,6 +54,8 @@ pub struct AppState {
     pub m3u8_url: String,
     /// Base URL for the EPG source.
     pub epg_url: String,
+    /// Shared HTTP client for all upstream requests (with connection pooling).
+    pub client: Arc<reqwest::Client>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -94,6 +96,17 @@ pub fn build_router() -> Router {
             .build(),
     );
 
+    // Shared client for all upstream requests.
+    // Policy::none() is critical for our proxy logic to handle redirects manually.
+    let client = Arc::new(
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_max_idle_per_host(32)
+            .build()
+            .unwrap(),
+    );
+
     let state = AppState {
         stream_cache,
         epg_cache,
@@ -103,6 +116,7 @@ pub fn build_router() -> Router {
         channel_index_cache,
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
+        client,
     };
 
     Router::new()
@@ -235,6 +249,7 @@ async fn data_handler(State(state): State<AppState>) -> impl IntoResponse {
 /// Pass-through proxy that adds CORS headers to any requested URL.
 /// Used as a fallback for browser-side WASM fetches.
 async fn fetch_pass_through_handler(
+    State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let url = query.get("url").cloned().unwrap_or_default();
@@ -247,8 +262,7 @@ async fn fetch_pass_through_handler(
         return (StatusCode::FORBIDDEN, "Unsafe URL").into_response();
     }
 
-    let client = reqwest::Client::new();
-    match client.get(&url).send().await {
+    match state.client.get(&url).send().await {
         Ok(res) => {
             let status = res.status();
             let mut headers = HeaderMap::new();
