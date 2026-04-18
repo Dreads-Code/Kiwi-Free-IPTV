@@ -5,7 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use crate::AppState;
 #[cfg(not(target_arch = "wasm32"))]
-use crate::tvmaze::{self, process_epg_icon_url};
+use crate::tvmaze::process_epg_icon_url;
 #[cfg(not(target_arch = "wasm32"))]
 use futures::stream::{self, StreamExt};
 
@@ -17,12 +17,15 @@ use quick_xml::de::from_str;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Hardcoded source URL for the M3U8 playlist.
 pub const M3U8_URL: &str = "https://i.mjh.nz/nz/raw-tv.m3u8";
 /// Hardcoded source URL for the EPG XML data.
 pub const EPG_URL: &str = "https://i.mjh.nz/nz/epg.xml";
+
+static RE_TVG_ID: OnceLock<regex::Regex> = OnceLock::new();
+static RE_TVG_LOGO: OnceLock<regex::Regex> = OnceLock::new();
 
 #[cfg(not(target_arch = "wasm32"))]
 const CHANNEL_CACHE_KEY: &str = "data";
@@ -214,12 +217,14 @@ pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
     let mut current_name = None;
     let mut current_headers: HashMap<String, String> = HashMap::new();
 
+    let re_id = RE_TVG_ID.get_or_init(|| regex::Regex::new(r#"tvg-id="([^"]*)""#).unwrap());
+    let re_logo = RE_TVG_LOGO.get_or_init(|| regex::Regex::new(r#"tvg-logo="([^"]*)""#).unwrap());
+
     for line in m3u8_text.lines() {
         let line = line.trim();
         if line.starts_with("#EXTINF:") {
-            if let Some(idx) = line.find("tvg-id=\"") {
-                let end = line[idx + 8..].find("\"").unwrap_or(0);
-                let tvg_id = &line[idx + 8..idx + 8 + end];
+            if let Some(cap) = re_id.captures(line) {
+                let tvg_id = &cap[1];
                 current_tvg_id = if tvg_id.is_empty() {
                     None
                 } else {
@@ -227,9 +232,8 @@ pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
                 };
             }
 
-            if let Some(idx) = line.find("tvg-logo=\"") {
-                let end = line[idx + 10..].find("\"").unwrap_or(0);
-                let tvg_logo = &line[idx + 10..idx + 10 + end];
+            if let Some(cap) = re_logo.captures(line) {
+                let tvg_logo = &cap[1];
                 current_tvg_logo = if tvg_logo.is_empty() {
                     None
                 } else {
@@ -515,27 +519,10 @@ pub async fn format_meta(
 
         if poster.is_none()
             && let Some(title) = &cp.title
+            && let Some(enriched) = state.tvmaze_client.fetch_show_images(title).await
         {
-            let cache_key = title.clone();
-            if let Some(cached) = state.image_cache.get(&cache_key).await {
-                poster = cached.poster;
-                banner = cached.banner;
-            } else if let Some(enriched) = state.tvmaze_client.fetch_show_images(title).await {
-                poster = enriched.poster.clone();
-                banner = enriched.banner.clone();
-                state.image_cache.insert(cache_key, enriched).await;
-            } else {
-                state
-                    .image_cache
-                    .insert(
-                        cache_key,
-                        tvmaze::ShowImages {
-                            poster: None,
-                            banner: None,
-                        },
-                    )
-                    .await;
-            }
+            poster = enriched.poster;
+            banner = enriched.banner;
         }
 
         if let Some(p) = poster {

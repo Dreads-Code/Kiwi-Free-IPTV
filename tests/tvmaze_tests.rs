@@ -99,3 +99,21 @@ async fn test_fetch_show_images_network_error() {
     assert!(result.is_none());
     m.assert_async().await;
 }
+
+#[test]
+fn test_tvmaze_client_new() {
+    let client = TvMazeClient::new();
+    assert_eq!(client.base_url(), "https://api.tvmaze.com");
+}
+
+#[test]
+fn test_tvmaze_client_default() {
+    let client = TvMazeClient::default();
+    assert_eq!(client.base_url(), "https://api.tvmaze.com");
+}
+
+#[test]
+fn test_tvmaze_client_with_base_url() {
+    let client = TvMazeClient::with_base_url("https://test.tvmaze.com".to_string());
+    assert_eq!(client.base_url(), "https://test.tvmaze.com");
+}

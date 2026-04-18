@@ -9,7 +9,6 @@ fn create_mock_state() -> AppState {
     AppState {
         stream_cache: Arc::new(moka::future::Cache::new(100)),
         epg_cache: Arc::new(moka::future::Cache::new(100)),
-        image_cache: Arc::new(moka::future::Cache::new(100)),
         tvmaze_client: Arc::new(tvmaze::TvMazeClient::new()),
         channel_cache: Arc::new(moka::future::Cache::new(100)),
         channel_index_cache: Arc::new(moka::future::Cache::new(100)),
@@ -21,6 +20,7 @@ fn create_mock_state() -> AppState {
                 .build()
                 .unwrap(),
         ),
+        fetch_client: Arc::new(reqwest::Client::new()),
     }
 }
 

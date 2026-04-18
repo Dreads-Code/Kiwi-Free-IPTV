@@ -11,17 +11,13 @@ A high-performance, unified solution for streaming free-to-air New Zealand TV. T
 We provide a consistent and lightning-fast experience for streaming free-to-air New Zealand TV through either a Web Player or a Stremio addon.
 
 ### 1. 📺 Stremio Addon
-
 A native Stremio integration that provides rich metadata, landscape posters, and reliable streaming to any Stremio-capable device.
-
 - **Rich EPG**: Instant updates for currently airing programs on the Discover pane.
 - **Smart Sorting**: Channels ordered to match the official NZ Freeview layout.
 - **Enhanced Metadata**: IMDb ratings, genres, and age classifications.
 
 ### 2. 📱 TV Web Application
-
 A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
-
 - **Premium UI**: Dark-mode focused, glassmorphic design with smooth micro-animations.
 - **Integrated Player**: Custom HLS player with adaptive quality and picture-in-picture.
 - **Zero Bloat**: Consumed pre-processed data from the Rust backend, eliminating browser-side XML parsing.
@@ -32,11 +28,10 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 
 > [!IMPORTANT]
 > The following channels are **region-locked** and will only function if your IP address is within **New Zealand**:
->
 > - **Three**
 > - **Bravo**
 > - **The Edge TV**
->
+> 
 > If you are outside of New Zealand, a **VPN** connected to a New Zealand server is required to stream these channels.
 
 ---
@@ -54,20 +49,18 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 ## 💻 Development
 
 ### Prerequisites
-
 - **Rust**: [Install Rust](https://www.rust-lang.org/tools/install)
 - **Node.js**: [Install Node.js](https://nodejs.org/)
 
 ### Root Commands
-
 You can manage the entire project (backend and frontend) from the root directory:
 
-| Command         | Action                                                                       |
-| :-------------- | :--------------------------------------------------------------------------- |
-| `npm run dev`   | Starts both the Rust backend and React frontend concurrently.                |
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Starts both the Rust backend and React frontend concurrently. |
 | `npm run build` | Builds the WASM engine, the backend binary, and the React production bundle. |
-| `npm run lint`  | Runs `cargo clippy` and `eslint` for both codebases.                         |
-| `npm run fmt`   | Formats both Rust and React code according to project standards.             |
+| `npm run lint` | Runs `cargo clippy` and `eslint` for both codebases. |
+| `npm run fmt` | Formats both Rust and React code according to project standards. |
 
 ---
 

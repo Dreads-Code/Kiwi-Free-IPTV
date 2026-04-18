@@ -8,14 +8,6 @@ pub fn init_panic_hook() {
 }
 
 #[wasm_bindgen]
-pub fn greet(name: &str) -> String {
-    format!(
-        "Hello, {}! This is the Kiwi IPTV Rust Engine running in your browser.",
-        name
-    )
-}
-
-#[wasm_bindgen]
 pub fn parse_nz_channels(m3u8_text: &str, epg_text: &str) -> Result<JsValue, JsValue> {
     let channels = parse_channels(m3u8_text, epg_text);
     serde_wasm_bindgen::to_value(&channels).map_err(|e| JsValue::from_str(&e.to_string()))

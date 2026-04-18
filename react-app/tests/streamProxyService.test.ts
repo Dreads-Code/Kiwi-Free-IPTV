@@ -90,6 +90,38 @@ describe("streamProxyService", () => {
     });
   });
 
+  describe("decodeProxyUrl", () => {
+    it("should return null if the URL does not contain /proxy/", () => {
+      expect(decodeProxyUrl("https://example.com/stream.m3u8")).toBeNull();
+    });
+
+    it("should return null if there is no encoded portion in the URL", () => {
+      expect(decodeProxyUrl("/proxy/")).toBeNull();
+    });
+
+    it("should return null if the encoded string is not valid base64 (line 73)", () => {
+      // "!!!" is not valid base64 and will cause atob to throw
+      expect(decodeProxyUrl("/proxy/!!!")).toBeNull();
+    });
+
+    it("should return null if the base64 is valid but the content is not valid JSON (line 73)", () => {
+      // btoa("not-json") = "bm90LWpzb24="
+      const invalidJson = btoa("not-json");
+      expect(decodeProxyUrl(`/proxy/${invalidJson}`)).toBeNull();
+    });
+
+    it("should return null if the JSON is valid but does not contain the url property", () => {
+      const emptyJson = btoa("{}");
+      expect(decodeProxyUrl(`/proxy/${emptyJson}`)).toBeNull();
+    });
+
+    it("should correctly decode a valid proxy URL", () => {
+      const originalUrl = "https://example.com/stream.m3u8";
+      const proxyUrl = applyProxyRules(originalUrl);
+      expect(decodeProxyUrl(proxyUrl)).toBe(originalUrl);
+    });
+  });
+
   describe("isProxiedUrl", () => {
     it("should return true for URLs containing /api/proxy", () => {
       expect(isProxiedUrl("https://example.com/api/proxy/stream")).toBe(true);

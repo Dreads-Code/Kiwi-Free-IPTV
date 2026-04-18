@@ -63,6 +63,7 @@ struct TvMazeUrl {
 pub struct TvMazeClient {
     client: reqwest::Client,
     base_url: String,
+    cache: moka::future::Cache<String, ShowImages>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -72,7 +73,16 @@ impl TvMazeClient {
         Self {
             client: reqwest::Client::new(),
             base_url: "https://api.tvmaze.com".to_string(),
+            cache: moka::future::Cache::builder()
+                .time_to_live(std::time::Duration::from_secs(86400 * 7)) // 7 days
+                .max_capacity(2048)
+                .build(),
         }
+    }
+
+    /// Returns the base URL used by this client.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 }
 
@@ -90,6 +100,10 @@ impl TvMazeClient {
         Self {
             client: reqwest::Client::new(),
             base_url,
+            cache: moka::future::Cache::builder()
+                .time_to_live(std::time::Duration::from_secs(86400 * 7))
+                .max_capacity(2048)
+                .build(),
         }
     }
 
@@ -98,6 +112,10 @@ impl TvMazeClient {
         let cleaned_query = clean_title_for_search(query);
         if cleaned_query.is_empty() {
             return None;
+        }
+
+        if let Some(cached) = self.cache.get(&cleaned_query).await {
+            return Some(cached);
         }
 
         info!("[TVMaze] Searching for show images: \"{}\"", cleaned_query);
@@ -120,6 +138,17 @@ impl TvMazeClient {
         };
 
         if search_res.is_empty() {
+            // Cache the negative result so repeated lookups for the same unknown show don't
+            // re-hit the TVMaze API on every format_meta call.
+            self.cache
+                .insert(
+                    cleaned_query,
+                    ShowImages {
+                        poster: None,
+                        banner: None,
+                    },
+                )
+                .await;
             return None;
         }
 
@@ -149,6 +178,9 @@ impl TvMazeClient {
             }
         }
 
+        self.cache
+            .insert(cleaned_query, images_result.clone())
+            .await;
         Some(images_result)
     }
 }

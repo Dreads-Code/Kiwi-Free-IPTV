@@ -257,32 +257,35 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
             const visibleTop = scrollTop - bufferPx;
             const visibleBottom = scrollTop + clientHeight + bufferPx;
 
-            const visibleProgrammes: {
-              prog: Programme;
-              originalIdx: number;
-            }[] = [];
-
             const visibleTopTime =
               (visibleTop / pixelsPerHour) * (1000 * 60 * 60) +
               scheduleStartTime.getTime();
+            const visibleBottomTime =
+              (visibleBottom / pixelsPerHour) * (1000 * 60 * 60) +
+              scheduleStartTime.getTime();
+
             const startIndex = findFirstVisibleProgrammeIndex(
               programmes,
               visibleTopTime,
             );
 
-            if (startIndex !== -1) {
-              for (let i = startIndex; i < programmes.length; i++) {
-                const programme = programmes[i];
-                const startOffsetMs =
-                  programme.startMs - scheduleStartTime.getTime();
-                const topPx =
-                  (startOffsetMs / (1000 * 60 * 60)) * pixelsPerHour;
+            const lastIndex =
+              startIndex === -1
+                ? -1
+                : findFirstProgrammeStartingAfter(
+                    programmes,
+                    visibleBottomTime,
+                  );
 
-                if (topPx >= visibleBottom) break;
+            const endIndex = lastIndex === -1 ? programmes.length : lastIndex;
 
-                visibleProgrammes.push({ prog: programme, originalIdx: i });
-              }
-            }
+            const visibleProgrammes =
+              startIndex === -1
+                ? []
+                : programmes.slice(startIndex, endIndex).map((prog, i) => ({
+                    prog,
+                    originalIdx: startIndex + i,
+                  }));
 
             return (
               <div

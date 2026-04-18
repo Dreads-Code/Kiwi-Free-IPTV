@@ -118,6 +118,22 @@ const SettingsMenu: React.FC<{
     "main",
   );
 
+  const subtitleLookup = React.useMemo(() => {
+    const map = new Map<number, string>();
+    for (const track of subtitleTracks) {
+      map.set(track.id, track.label);
+    }
+    return map;
+  }, [subtitleTracks]);
+
+  const qualityLookup = React.useMemo(() => {
+    const map = new Map<number, number>();
+    for (const q of qualities) {
+      map.set(q.id, q.height);
+    }
+    return map;
+  }, [qualities]);
+
   return (
     <div className="animate-fade-in absolute right-4 bottom-16 w-64 overflow-hidden rounded-lg border border-white/10 bg-black/90 text-sm shadow-xl backdrop-blur-md">
       {activeTab === "main" && (
@@ -137,8 +153,7 @@ const SettingsMenu: React.FC<{
                 <span className="text-xs">
                   {currentSubtitleTrack === -1
                     ? "Off"
-                    : (subtitleTracks.find((t) => t.id === currentSubtitleTrack)
-                        ?.label ?? "Unknown")}
+                    : (subtitleLookup.get(currentSubtitleTrack) ?? "Unknown")}
                 </span>
                 <ChevronRight size={14} />
               </div>
@@ -159,7 +174,7 @@ const SettingsMenu: React.FC<{
                 <span className="text-xs">
                   {currentQuality === -1
                     ? "Auto"
-                    : `${(qualities.find((q) => q.id === currentQuality)?.height ?? 0).toString()}p`}
+                    : `${(qualityLookup.get(currentQuality) ?? 0).toString()}p`}
                 </span>
                 <ChevronRight size={14} />
               </div>

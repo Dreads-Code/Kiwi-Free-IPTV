@@ -31,18 +31,31 @@ use url::Url;
 
 static RE_URI: OnceLock<regex::Regex> = OnceLock::new();
 
-fn is_private_ip(ip: std::net::IpAddr) -> bool {
+/// Fallback public NZ IP used when no trusted client IP is available.
+/// MJH's playlist server (i.mjh.nz) geo-restricts responses to NZ IPs, so we present
+/// a known NZ address for the X-Forwarded-For handshake when we cannot determine the
+/// real client IP from trusted proxy headers.
+#[cfg(not(target_arch = "wasm32"))]
+const MJH_FALLBACK_NZ_IP: &str = "210.54.34.12";
+
+pub fn is_private_ip(ip: std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(ipv4) => {
-            ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local()
+            ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local() || ipv4.is_unspecified()
         }
         std::net::IpAddr::V6(ipv6) => {
             ipv6.is_loopback()
+                || ipv6.is_unspecified()
                 || (ipv6.segments()[0] & 0xff00) == 0xfe00
                 || (ipv6.segments()[0] & 0xfe00) == 0xfc00
                 || ipv6
                     .to_ipv4()
-                    .map(|ip| ip.is_private() || ip.is_loopback() || ip.is_link_local())
+                    .map(|ip| {
+                        ip.is_private()
+                            || ip.is_loopback()
+                            || ip.is_link_local()
+                            || ip.is_unspecified()
+                    })
                     .unwrap_or(false)
         }
     }
@@ -294,9 +307,30 @@ pub async fn do_proxy(
 
     let range_header = request_headers.get("range").cloned();
 
-    let payload_headers: HashMap<String, String> = headers_str
+    let payload_headers_raw: HashMap<String, String> = headers_str
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
+
+    let mut payload_headers = HeaderMap::new();
+    for (k, v) in payload_headers_raw {
+        let name_lower = k.to_lowercase();
+        // Prevent spoofing by stripping sensitive headers from the payload
+        // We also block X-Forwarded-Host and Forwarded to prevent host/identity spoofing
+        if name_lower == "x-forwarded-for"
+            || name_lower == "x-real-ip"
+            || name_lower == "host"
+            || name_lower == "x-forwarded-host"
+            || name_lower == "forwarded"
+        {
+            continue;
+        }
+
+        if let Ok(name) = HeaderName::from_str(&k)
+            && let Ok(value) = HeaderValue::from_str(&v)
+        {
+            payload_headers.insert(name, value);
+        }
+    }
 
     if !is_safe_url(target_url) {
         warn!("Blocked unsafe proxy target: {}", target_url);
@@ -307,21 +341,39 @@ pub async fn do_proxy(
             .unwrap();
     }
 
-    let user_ip = request_headers
-        .get("x-real-ip")
-        .or_else(|| request_headers.get("x-forwarded-for"))
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
-        .map(|s| s.trim())
-        .filter(|ip| {
-            if let Ok(parsed_ip) = ip.parse::<std::net::IpAddr>() {
-                !is_private_ip(parsed_ip)
-            } else {
-                false
-            }
-        })
-        .unwrap_or("210.54.34.12")
-        .to_string();
+    // Only trust forwarding headers if we are running behind a known trusted proxy.
+    // x-vercel-id is a hint that the request arrived via Vercel's edge network, but it is NOT
+    // cryptographically verified — a direct connection could forge it. Treat it as a
+    // best-effort signal, not a security boundary. IPTV_TRUST_PROXY_HEADERS provides an
+    // explicit opt-in for other reverse-proxy deployments.
+    let is_trusted = request_headers.contains_key("x-vercel-id")
+        || std::env::var("IPTV_TRUST_PROXY_HEADERS")
+            .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+            .unwrap_or(false);
+
+    let user_ip = if is_trusted {
+        request_headers
+            .get("x-real-ip")
+            .or_else(|| request_headers.get("x-forwarded-for"))
+            .and_then(|v| v.to_str().ok())
+            // Take the LAST entry in X-Forwarded-For if multiple exist.
+            // Attackers can prepend spoofed IPs, but trusted proxies append the real peer IP.
+            .and_then(|v| v.split(',').next_back())
+            .map(|s| s.trim())
+            .filter(|ip| {
+                if let Ok(parsed_ip) = ip.parse::<std::net::IpAddr>() {
+                    !is_private_ip(parsed_ip)
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(MJH_FALLBACK_NZ_IP)
+            .to_string()
+    } else {
+        // Not a trusted proxy environment: use the fallback NZ IP so the MJH geo-handshake
+        // succeeds without relying on potentially spoofed client headers.
+        MJH_FALLBACK_NZ_IP.to_string()
+    };
 
     let mut current_url = target_url.to_string();
 
@@ -374,9 +426,8 @@ pub async fn do_proxy(
             req_builder = req_builder.header("User-Agent", BROWSER_UA);
         } else {
             let ua = payload_headers
-                .iter()
-                .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
-                .map(|(_, v)| v.as_str())
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
                 .unwrap_or(APPLE_UA);
             let ua_val =
                 HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(APPLE_UA));
@@ -399,15 +450,11 @@ pub async fn do_proxy(
             req_builder = req_builder.header("Range", val.clone());
         }
 
-        for (k, v) in &payload_headers {
-            if k.eq_ignore_ascii_case("user-agent") || k.eq_ignore_ascii_case("x-forwarded-for") {
+        for (name, value) in &payload_headers {
+            if name == "user-agent" || name == "x-forwarded-for" {
                 continue;
             }
-            if let Ok(name) = HeaderName::from_str(k)
-                && let Ok(value) = HeaderValue::from_str(v)
-            {
-                req_builder = req_builder.header(name, value);
-            }
+            req_builder = req_builder.header(name.clone(), value.clone());
         }
 
         match req_builder.send().await {

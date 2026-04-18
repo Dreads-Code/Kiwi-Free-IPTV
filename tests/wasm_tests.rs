@@ -36,5 +36,7 @@ fn test_process_icon_url_logic() {
 #[test]
 fn test_is_safe_proxy_url_logic() {
     assert!(is_safe_url("https://i.mjh.nz/nz/playlist.m3u8"));
-    assert!(!is_safe_url("https://evil-site.com/malware"));
+    // SSRF bypass attempts
+    assert!(!is_safe_url("http://0.0.0.0/admin"));
+    assert!(!is_safe_url("http://[::]/admin"));
 }

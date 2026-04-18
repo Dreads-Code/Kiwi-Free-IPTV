@@ -68,8 +68,8 @@ export const decodeProxyUrl = (proxyUrl: string): string | null => {
     }
 
     const jsonStr = atob(base64);
-    const payload = JSON.parse(jsonStr) as { url: string };
-    return payload.url;
+    const payload = JSON.parse(jsonStr) as { url?: string };
+    return payload.url ?? null;
   } catch {
     return null;
   }

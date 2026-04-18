@@ -5,6 +5,7 @@
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useMemo,
   useRef,
@@ -142,6 +143,8 @@ const Player: React.FC = () => {
     channelContext: Channel | null;
   }>({ isOpen: false, channelContext: null });
 
+  const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
+
   const [isStremioOpen, setIsStremioOpen] = useState<boolean>(false);
   const [headerFocusAnchor, setHeaderFocusAnchor] = useState<
     "stremio" | "schedule"
@@ -181,31 +184,39 @@ const Player: React.FC = () => {
     setFocusLocation("deck");
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { channels: channelsData, epg: epgData } = await fetchAllData();
-
-      setChannels(channelsData);
-      setEpg(epgData);
-
-      if (channelsData.length > 0) {
-        setActiveChannelId(channelsData[0].id);
-      }
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "An unknown error occurred.",
-      );
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { channels: channelsData, epg: epgData } = await fetchAllData();
+        if (cancelled) return;
+        setChannels(channelsData);
+        setEpg(epgData);
+        if (channelsData.length > 0) {
+          setActiveChannelId(channelsData[0].id);
+        }
+      } catch (error_) {
+        if (!cancelled) {
+          setError(
+            error_ instanceof Error
+              ? error_.message
+              : "An unknown error occurred.",
+          );
+          console.error(error_);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const detailData = useMemo(() => {
     if (selectedScheduleItem) {
@@ -330,8 +341,8 @@ const Player: React.FC = () => {
     keyPressCooldown,
   });
 
-  useEffect(() => {
-    stateRef.current = {
+  useLayoutEffect(() => {
+    Object.assign(stateRef.current, {
       playingChannel,
       detailData,
       scheduleViewConfig,
@@ -341,17 +352,8 @@ const Player: React.FC = () => {
       focusLocation,
       headerFocusAnchor,
       keyPressCooldown,
-    };
-  }, [
-    playingChannel,
-    detailData,
-    scheduleViewConfig,
-    isStremioOpen,
-    channels,
-    activeChannelId,
-    focusLocation,
-    headerFocusAnchor,
-  ]);
+    });
+  });
 
   // Push state to history when a modal opens
   useEffect(() => {
@@ -538,8 +540,6 @@ const Player: React.FC = () => {
     handleChannelSelect,
     handleOpenStremio,
   ]);
-
-  const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
 
   const channelsForSchedule = useMemo(() => {
     return scheduleViewConfig.channelContext

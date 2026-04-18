@@ -158,23 +158,34 @@ fn test_rewrite_m3u8_logic() {
 
 #[test]
 fn test_get_base_url() {
-    // 1. Localhost default
+    // 1. Localhost default (localhost)
     let mut headers = HeaderMap::new();
     headers.insert("host", "localhost:7000".parse().unwrap());
     assert_eq!(get_base_url(&headers), "http://localhost:7000");
 
-    // 2. Remote default (defaults to https)
+    // 2. Localhost default (127.0.0.1)
+    let mut headers = HeaderMap::new();
+    headers.insert("host", "127.0.0.1:7000".parse().unwrap());
+    assert_eq!(get_base_url(&headers), "http://127.0.0.1:7000");
+
+    // 3. Remote default (defaults to https)
     let mut headers = HeaderMap::new();
     headers.insert("host", "stremio-nz.vercel.app".parse().unwrap());
     assert_eq!(get_base_url(&headers), "https://stremio-nz.vercel.app");
 
-    // 3. Explicit protocol via header
+    // 4. Explicit protocol via header (http)
     let mut headers = HeaderMap::new();
     headers.insert("host", "myapp.com".parse().unwrap());
     headers.insert("x-forwarded-proto", "http".parse().unwrap());
     assert_eq!(get_base_url(&headers), "http://myapp.com");
 
-    // 4. Fallback when no host is present
+    // 5. Explicit protocol via header (https on localhost)
+    let mut headers = HeaderMap::new();
+    headers.insert("host", "localhost".parse().unwrap());
+    headers.insert("x-forwarded-proto", "https".parse().unwrap());
+    assert_eq!(get_base_url(&headers), "https://localhost");
+
+    // 6. Fallback when no host is present
     let headers = HeaderMap::new();
     assert_eq!(get_base_url(&headers), "http://127.0.0.1:7000");
 }
@@ -502,13 +513,18 @@ async fn test_proxy_path_handler_integration() {
     let state = AppState {
         stream_cache: Arc::new(moka::future::Cache::new(100)),
         epg_cache: Arc::new(moka::future::Cache::new(100)),
-        image_cache: Arc::new(moka::future::Cache::new(100)),
         tvmaze_client: Arc::new(tvmaze::TvMazeClient::new()),
         channel_cache: Arc::new(moka::future::Cache::new(100)),
         channel_index_cache: Arc::new(moka::future::Cache::new(100)),
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
-        client: Arc::new(reqwest::Client::new()),
+        client: Arc::new(
+            reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
+        ),
+        fetch_client: Arc::new(reqwest::Client::new()),
     };
 
     let res = proxy::proxy_path_handler(
@@ -527,4 +543,78 @@ async fn test_proxy_path_handler_integration() {
         .await
         .unwrap();
     assert_eq!(body.as_ref(), b"#EXTM3U\n");
+}
+
+#[test]
+fn test_is_private_ip() {
+    use std::net::IpAddr;
+    use std::str::FromStr;
+
+    // Private IPv4
+    assert!(proxy::is_private_ip(IpAddr::from_str("10.0.0.1").unwrap()));
+    assert!(proxy::is_private_ip(
+        IpAddr::from_str("172.16.0.1").unwrap()
+    ));
+    assert!(proxy::is_private_ip(
+        IpAddr::from_str("192.168.1.1").unwrap()
+    ));
+
+    // Loopback IPv4
+    assert!(proxy::is_private_ip(IpAddr::from_str("127.0.0.1").unwrap()));
+
+    // Unspecified IPv4 (Bypass)
+    assert!(proxy::is_private_ip(IpAddr::from_str("0.0.0.0").unwrap()));
+
+    // Public IPv4
+    assert!(!proxy::is_private_ip(IpAddr::from_str("8.8.8.8").unwrap()));
+    assert!(!proxy::is_private_ip(IpAddr::from_str("1.1.1.1").unwrap()));
+
+    // IPv6
+    assert!(proxy::is_private_ip(IpAddr::from_str("::1").unwrap())); // Loopback
+    assert!(proxy::is_private_ip(IpAddr::from_str("::").unwrap())); // Unspecified
+    assert!(proxy::is_private_ip(IpAddr::from_str("fe80::1").unwrap())); // Link-local
+}
+
+#[test]
+fn test_is_safe_url_ssrf() {
+    // These should always be blocked regardless of debug mode because they use is_private_ip
+    assert!(!proxy::is_safe_url("http://0.0.0.0/admin"));
+    assert!(!proxy::is_safe_url("http://[::]/admin"));
+    assert!(!proxy::is_safe_url("http://169.254.169.254/metadata")); // Link-local
+}
+
+#[tokio::test]
+async fn test_proxy_ip_spoof_protection() {
+    let mut server = mockito::Server::new_async().await;
+    let target_url = format!("{}/video.ts", server.url());
+
+    // Assert that the upstream receives the LAST (trusted) entry from X-Forwarded-For,
+    // not the first (attacker-prepended) entry. This verifies spoof protection is active.
+    let m = server
+        .mock("GET", "/video.ts")
+        .match_header("x-forwarded-for", "5.6.7.8")
+        .with_status(200)
+        .with_body("video-data")
+        .create_async()
+        .await;
+
+    let mut request_headers = axum::http::HeaderMap::new();
+    // Signal a trusted environment (like Vercel)
+    request_headers.insert("x-vercel-id", "test-id".parse().unwrap());
+    // Spoofed chain: attacker-prepended IP first, real client IP last.
+    // The proxy should forward only the last entry (5.6.7.8).
+    request_headers.insert("x-forwarded-for", "1.2.3.4, 5.6.7.8".parse().unwrap());
+
+    let client = reqwest::Client::new();
+    let res = proxy::do_proxy(
+        &client,
+        axum::http::Method::GET,
+        &target_url,
+        Some("{}"),
+        &request_headers,
+    )
+    .await;
+
+    assert!(res.status().is_success());
+    m.assert_async().await;
 }

@@ -122,5 +122,34 @@ describe("tvService", () => {
       const result = await fetchAllData();
       expect(result.epg.get("test-channel-1")).toHaveLength(0);
     });
+
+    it("should return null in parseEpgDate on malformed numerical data in string", async () => {
+      vi.mocked(wasmModule.parse_nz_channels).mockReturnValue([
+        {
+          id: "test-channel-1",
+          name: "Test Channel 1",
+          url: "https://stream.com/1.m3u8",
+          category: "Entertainment",
+          description: "",
+          programmes: [
+            {
+              // String with length >= 20 but invalid numerical segments
+              start: "Not-A-Valid-Date-String-At-All",
+              stop: "20240728010000 +1200",
+              channel: "test-channel-1",
+              title: "Malformed String Test",
+            },
+          ],
+        },
+      ]);
+
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response)
+        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
+
+      const result = await fetchAllData();
+      // Should handle the error via isNaN checks and return null, resulting in the programme being filtered out
+      expect(result.epg.get("test-channel-1")).toHaveLength(0);
+    });
   });
 });

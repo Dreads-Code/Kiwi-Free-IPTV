@@ -1,25 +1,64 @@
 import { Channel, EpgData, Programme } from "../types";
 
-const parseEpgDate = (dateStr: string | undefined | null): Date | null => {
+const parseEpgDate = (
+  dateStr: string | undefined | null,
+  cache: Map<string, Date | null>,
+): Date | null => {
+  if (!dateStr) return null;
+
+  // Use cache to avoid redundant parsing for the same timestamp string across thousands of programmes
+  const cached = cache.get(dateStr);
+  if (cached !== undefined) return cached;
+
   // dateStr format is "20240728000000 +1200"
-  if (!dateStr || dateStr.length < 20) return null;
+  if (dateStr.length < 20) {
+    cache.set(dateStr, null);
+    return null;
+  }
+
+  const year = Number.parseInt(dateStr.slice(0, 4), 10);
+  const month = Number.parseInt(dateStr.slice(4, 6), 10) - 1;
+  const day = Number.parseInt(dateStr.slice(6, 8), 10);
+  const hour = Number.parseInt(dateStr.slice(8, 10), 10);
+  const minute = Number.parseInt(dateStr.slice(10, 12), 10);
+  const second = Number.parseInt(dateStr.slice(12, 14), 10);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    Number.isNaN(second)
+  ) {
+    cache.set(dateStr, null);
+    return null;
+  }
+
+  const signStr = dateStr[15];
+  const sign = signStr === "-" ? -1 : 1;
+  const tzHour = Number.parseInt(dateStr.slice(16, 18), 10);
+  const tzMin = Number.parseInt(dateStr.slice(18, 20), 10);
+
+  if (Number.isNaN(tzHour) || Number.isNaN(tzMin)) {
+    cache.set(dateStr, null);
+    return null;
+  }
+
+  const offsetMs = sign * (tzHour * 60 + tzMin) * 60 * 1000;
 
   try {
-    const year = Number.parseInt(dateStr.slice(0, 4), 10);
-    const month = Number.parseInt(dateStr.slice(4, 6), 10) - 1;
-    const day = Number.parseInt(dateStr.slice(6, 8), 10);
-    const hour = Number.parseInt(dateStr.slice(8, 10), 10);
-    const minute = Number.parseInt(dateStr.slice(10, 12), 10);
-    const second = Number.parseInt(dateStr.slice(12, 14), 10);
-
-    const sign = dateStr[15] === "-" ? -1 : 1;
-    const tzHour = Number.parseInt(dateStr.slice(16, 18), 10);
-    const tzMin = Number.parseInt(dateStr.slice(18, 20), 10);
-    const offsetMs = sign * (tzHour * 60 + tzMin) * 60 * 1000;
-
     const utcMs = Date.UTC(year, month, day, hour, minute, second);
-    return new Date(utcMs - offsetMs);
+    if (Number.isNaN(utcMs)) {
+      cache.set(dateStr, null);
+      return null;
+    }
+
+    const date = new Date(utcMs - offsetMs);
+    cache.set(dateStr, date);
+    return date;
   } catch {
+    cache.set(dateStr, null);
     return null;
   }
 };
@@ -70,6 +109,8 @@ export const fetchAllData = async (): Promise<{
   channels: Channel[];
   epg: EpgData;
 }> => {
+  const dateCache = new Map<string, Date | null>();
+
   // 1. Check persistent cache for EPG (8MB is too big for Every reload)
   const cachedEpg = await epgCache.get("epg_xml", EPG_CACHE_TTL);
 
@@ -123,8 +164,8 @@ export const fetchAllData = async (): Promise<{
     // 2. Map to Programme objects in the same pass (avoiding .map().filter())
     const programmes: Programme[] = [];
     for (const p of meta.programmes) {
-      const start = parseEpgDate(p.start);
-      const stop = parseEpgDate(p.stop);
+      const start = parseEpgDate(p.start, dateCache);
+      const stop = parseEpgDate(p.stop, dateCache);
       if (!start || !stop) continue;
 
       programmes.push({

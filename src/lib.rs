@@ -31,19 +31,13 @@ use tower_http::cors::CorsLayer;
 use url::Url;
 
 #[cfg(not(target_arch = "wasm32"))]
-const IMAGE_CACHE_MAX_CAPACITY: u64 = 2048;
-
-#[cfg(not(target_arch = "wasm32"))]
-/// Shared application state containing caches and external service clients.
 #[derive(Clone)]
 pub struct AppState {
     /// Cache for M3U8 stream playlists.
     pub stream_cache: Arc<moka::future::Cache<String, String>>,
     /// Cache for EPG XML data.
     pub epg_cache: Arc<moka::future::Cache<String, String>>,
-    /// Cache for enriched show images (posters/banners).
-    pub image_cache: Arc<moka::future::Cache<String, tvmaze::ShowImages>>,
-    /// Client for TVMaze API integration.
+    /// Client for TVMaze API integration (manages its own image cache).
     pub tvmaze_client: Arc<tvmaze::TvMazeClient>,
     /// Cache for processed channel lists.
     pub channel_cache: Arc<moka::future::Cache<String, Arc<Vec<iptv::ChannelMeta>>>>,
@@ -56,6 +50,8 @@ pub struct AppState {
     pub epg_url: String,
     /// Shared HTTP client for all upstream requests (with connection pooling).
     pub client: Arc<reqwest::Client>,
+    /// HTTP client for simple pass-through fetches that should follow redirects.
+    pub fetch_client: Arc<reqwest::Client>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -75,13 +71,6 @@ pub fn build_router() -> Router {
             .build(),
     );
 
-    let image_cache = Arc::new(
-        moka::future::Cache::builder()
-            .time_to_live(std::time::Duration::from_secs(86400 * 7)) // 7 days for images
-            .max_capacity(IMAGE_CACHE_MAX_CAPACITY)
-            .build(),
-    );
-
     let tvmaze_client = Arc::new(tvmaze::TvMazeClient::new());
 
     let channel_cache = Arc::new(
@@ -96,8 +85,7 @@ pub fn build_router() -> Router {
             .build(),
     );
 
-    // Shared client for all upstream requests.
-    // Policy::none() is critical for our proxy logic to handle redirects manually.
+    // Proxy client: redirects are handled manually so the proxy can rewrite URLs.
     let client = Arc::new(
         reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -107,16 +95,25 @@ pub fn build_router() -> Router {
             .unwrap(),
     );
 
+    // Fetch client: follows redirects automatically for simple byte-pipe pass-throughs.
+    let fetch_client = Arc::new(
+        reqwest::Client::builder()
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_max_idle_per_host(32)
+            .build()
+            .unwrap(),
+    );
+
     let state = AppState {
         stream_cache,
         epg_cache,
-        image_cache,
         tvmaze_client,
         channel_cache,
         channel_index_cache,
         m3u8_url: iptv::M3U8_URL.to_string(),
         epg_url: iptv::EPG_URL.to_string(),
         client,
+        fetch_client,
     };
 
     Router::new()
@@ -146,7 +143,16 @@ pub fn build_router() -> Router {
                 format!("404 Not Found - {}", path),
             )
         })
-        .layer(CorsLayer::permissive())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::HEAD,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers(tower_http::cors::Any),
+        )
         .with_state(state)
 }
 
@@ -156,7 +162,7 @@ pub fn build_router() -> Router {
 async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
     let mut manifest = Manifest {
         id: "stremio_iptv_id:nz".to_string(),
-        version: semver::Version::new(1, 1, 0),
+        version: semver::Version::new(1, 5, 0),
         name: "New Zealand TV".to_string(),
         description: Some("Free-to-air New Zealand TV that provides rich metadata, show posters, IMDb ratings, genres, and age classifications. Huge thanks to https://www.matthuisman.nz/".to_string()),
         id_prefixes: Some(vec![
@@ -262,7 +268,7 @@ async fn fetch_pass_through_handler(
         return (StatusCode::FORBIDDEN, "Unsafe URL").into_response();
     }
 
-    match state.client.get(&url).send().await {
+    match state.fetch_client.get(&url).send().await {
         Ok(res) => {
             let status = res.status();
             let mut headers = HeaderMap::new();
