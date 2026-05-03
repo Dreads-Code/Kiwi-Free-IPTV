@@ -183,7 +183,7 @@ export function useHlsPlayer({
               xhrSetup,
             });
             hlsRef.current = retryHls;
-            retryHls.loadSource(resolvedUrl || streamUrl);
+            retryHls.loadSource(resolvedUrl ?? streamUrl);
             retryHls.attachMedia(video);
             retryHls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
             retryHls.on(Hls.Events.ERROR, onHlsError);
@@ -354,18 +354,38 @@ export function useHlsPlayer({
         const handleTracksChanged = () => {
           const textTracks = video.textTracks;
           const tracks = [];
-          for (const [i, track] of textTracks.entries()) {
+          for (let i = 0; i < textTracks.length; i++) {
+            const track = textTracks[i];
             tracks.push({
               id: i,
               label:
-                track.label || track.language || `Track ${(i + 1).toString()}`,
+                track.label !== ""
+                  ? track.label
+                  : track.language !== ""
+                    ? track.language
+                    : `Track ${(i + 1).toString()}`,
             });
           }
           setSubtitleTracks(tracks);
         };
         video.textTracks.addEventListener("addtrack", handleTracksChanged);
         video.textTracks.addEventListener("removetrack", handleTracksChanged);
-        handleTracksChanged();
+        // Avoid synchronous setState in effect
+        requestAnimationFrame(() => {
+          handleTracksChanged();
+        });
+
+        return () => {
+          hls?.destroy();
+          video.removeEventListener("loadedmetadata", handleManifestParsed);
+          video.textTracks.removeEventListener("addtrack", handleTracksChanged);
+          video.textTracks.removeEventListener(
+            "removetrack",
+            handleTracksChanged,
+          );
+          video.removeAttribute("src");
+          video.load();
+        };
       }
     } else {
       video.src = streamUrl;
@@ -374,6 +394,7 @@ export function useHlsPlayer({
 
     return () => {
       hls?.destroy();
+      video.removeEventListener("loadedmetadata", handleManifestParsed);
       video.removeAttribute("src");
       video.load();
     };
@@ -393,8 +414,8 @@ export function useHlsPlayer({
         hlsRef.current.subtitleTrack = trackId;
       } else if (videoRef.current) {
         const textTracks = videoRef.current.textTracks;
-        for (const [i, textTrack] of textTracks.entries()) {
-          textTrack.mode = i === trackId ? "showing" : "hidden";
+        for (let i = 0; i < textTracks.length; i++) {
+          textTracks[i].mode = i === trackId ? "showing" : "hidden";
         }
       }
     },
@@ -409,8 +430,12 @@ export function useHlsPlayer({
   // Auto-dismiss HLS errors after 5 seconds
   useEffect(() => {
     if (hlsError) {
-      const timer = setTimeout(() => setHlsError(null), 5000);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        setHlsError(null);
+      }, 5000);
+      return () => {
+        clearTimeout(timer);
+      };
     }
   }, [hlsError]);
 
@@ -423,6 +448,8 @@ export function useHlsPlayer({
     currentQuality,
     handleQualityChange,
     hlsError,
-    clearHlsError: () => setHlsError(null),
+    clearHlsError: () => {
+      setHlsError(null);
+    },
   };
 }

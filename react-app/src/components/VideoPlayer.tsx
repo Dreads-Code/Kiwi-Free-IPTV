@@ -107,7 +107,11 @@ const VideoPlayer = ({
     video.addEventListener("play", handleActualPlay);
     video.addEventListener("pause", handleActualPause);
     video.addEventListener("playing", handleActualPlay);
-    if (!video.paused) handleActualPlay();
+    if (!video.paused) {
+      setTimeout(() => {
+        handleActualPlay();
+      }, 0);
+    }
     return () => {
       video.removeEventListener("play", handleActualPlay);
       video.removeEventListener("pause", handleActualPause);
@@ -156,7 +160,9 @@ const VideoPlayer = ({
       }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [handleFullscreenToggle]);
 
   const handleSeek = (time: number) => {
@@ -167,8 +173,10 @@ const VideoPlayer = ({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch((error: Error) => {
-        if (error.name !== "AbortError") console.error("Play failed:", error);
+      video.play().catch((error: unknown) => {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Play failed:", error);
+        }
       });
     } else {
       video.pause();
@@ -229,9 +237,15 @@ const VideoPlayer = ({
           setIsBuffering(false);
           showControls();
         }}
-        onWaiting={() => setIsBuffering(true)}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+        onWaiting={() => {
+          setIsBuffering(true);
+        }}
+        onTimeUpdate={(e) => {
+          setCurrentTime(e.currentTarget.currentTime);
+        }}
+        onDurationChange={(e) => {
+          setDuration(e.currentTarget.duration);
+        }}
       >
         <track kind="captions" />
       </video>

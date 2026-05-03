@@ -41,6 +41,11 @@ export function useFullscreen(
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
 
+    const handleWebKitCastAvailability = (event: Event) => {
+      const availabilityEvent = event as WebKitPlaybackTargetAvailabilityEvent;
+      setIsCastAvailable(availabilityEvent.availability === "available");
+    };
+
     const videoElement = video as HTMLVideoElementExtended;
     const remote = (videoElement as unknown as { remote?: RemotePlayback })
       .remote;
@@ -55,16 +60,16 @@ export function useFullscreen(
     } else if ("WebKitPlaybackTargetAvailabilityEvent" in globalThis) {
       video.addEventListener(
         "webkitplaybacktargetavailabilitychanged",
-        (event: Event) => {
-          const availabilityEvent =
-            event as WebKitPlaybackTargetAvailabilityEvent;
-          setIsCastAvailable(availabilityEvent.availability === "available");
-        },
+        handleWebKitCastAvailability,
       );
     }
 
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      video.removeEventListener(
+        "webkitplaybacktargetavailabilitychanged",
+        handleWebKitCastAvailability,
+      );
     };
   }, [videoRef]);
 

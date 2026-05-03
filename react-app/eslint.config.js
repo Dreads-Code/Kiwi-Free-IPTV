@@ -1,3 +1,4 @@
+import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -7,7 +8,7 @@ import unicorn from "eslint-plugin-unicorn";
 import sonarjs from "eslint-plugin-sonarjs";
 import eslintReact from "@eslint-react/eslint-plugin";
 
-export default tseslint.config(
+export default defineConfig([
   { ignores: ["dist", "dev-dist", "src/wasm"] },
   {
     extends: [
@@ -15,7 +16,7 @@ export default tseslint.config(
       ...tseslint.configs.strictTypeChecked,
       ...tseslint.configs.stylisticTypeChecked,
       sonarjs.configs.recommended,
-      unicorn.configs["flat/recommended"],
+      unicorn.configs.recommended,
       eslintReact.configs.recommended,
     ],
     files: ["**/*.{ts,tsx,js,jsx}"],
@@ -67,4 +68,4 @@ export default tseslint.config(
       "unicorn/prefer-module": "off", // vite handles module transforms
     },
   },
-);
+]);

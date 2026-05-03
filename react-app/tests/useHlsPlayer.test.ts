@@ -18,23 +18,22 @@ const mockHlsInstance = {
 
 const hlsIsSupported = () => true;
 
-class MockHls {
-  static readonly isSupported = vi.fn(hlsIsSupported);
-  static readonly Events = {
-    MANIFEST_PARSED: "manifestParsed",
-    MANIFEST_LOADED: "manifestLoaded",
-    SUBTITLE_TRACKS_UPDATED: "subtitleTracksUpdated",
-    ERROR: "error",
-  } as const;
-  static readonly ErrorTypes = {
-    NETWORK_ERROR: "networkError",
-    MEDIA_ERROR: "mediaError",
-    OTHER_ERROR: "otherError",
-  } as const;
-  constructor() {
-    return mockHlsInstance as unknown as MockHls;
-  }
-}
+const MockHls = function (this: unknown) {
+  return mockHlsInstance;
+};
+
+MockHls.isSupported = vi.fn(hlsIsSupported);
+MockHls.Events = {
+  MANIFEST_PARSED: "manifestParsed",
+  MANIFEST_LOADED: "manifestLoaded",
+  SUBTITLE_TRACKS_UPDATED: "subtitleTracksUpdated",
+  ERROR: "error",
+} as const;
+MockHls.ErrorTypes = {
+  NETWORK_ERROR: "networkError",
+  MEDIA_ERROR: "mediaError",
+  OTHER_ERROR: "otherError",
+} as const;
 
 vi.stubGlobal("Hls", MockHls);
 
@@ -78,7 +77,10 @@ function makeVideoMock(
 // Helper: build a video ref with a captured HLS event callback map
 // --------------------------------------------------------------------------
 function makeHlsSetup(videoMock: HTMLVideoElement) {
-  const callbacks: Record<string, (event: string, data: unknown) => void> = {};
+  const callbacks: Record<
+    string,
+    ((event: string, data: unknown) => void) | undefined
+  > = {};
   mockHlsInstance.on.mockImplementation(
     (event: string, cb: (event: string, data: unknown) => void) => {
       callbacks[event] = cb;
@@ -148,7 +150,7 @@ describe("useHlsPlayer – core functionality", () => {
     );
 
     act(() => {
-      callbacks["subtitleTracksUpdated"]?.("subtitleTracksUpdated", {
+      callbacks.subtitleTracksUpdated?.("subtitleTracksUpdated", {
         subtitleTracks: [{ name: "English", lang: "en" }, { lang: "fr" }, {}],
       });
     });
@@ -216,7 +218,7 @@ describe("useHlsPlayer – core functionality", () => {
     );
 
     act(() => {
-      callbacks["error"]?.("error", {
+      callbacks.error?.("error", {
         fatal: true,
         type: "otherError",
         details: "internalException",
@@ -244,7 +246,7 @@ describe("useHlsPlayer – core functionality", () => {
 
     // Trigger an error first
     act(() => {
-      callbacks["error"]?.("error", {
+      callbacks.error?.("error", {
         fatal: true,
         type: "otherError",
         details: "internalException",
@@ -273,7 +275,7 @@ describe("useHlsPlayer – core functionality", () => {
     );
 
     act(() => {
-      callbacks["error"]?.("error", {
+      callbacks.error?.("error", {
         fatal: false,
         type: "networkError",
         details: "bufferStalledError",
@@ -298,9 +300,12 @@ describe("useHlsPlayer – core functionality", () => {
     );
 
     unmount();
+    const { destroy } = mockHlsInstance;
 
-    expect(mockHlsInstance.destroy).toHaveBeenCalled();
+    expect(destroy).toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(videoMock.removeAttribute).toHaveBeenCalledWith("src");
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(videoMock.load).toHaveBeenCalled();
   });
 
@@ -318,7 +323,7 @@ describe("useHlsPlayer – core functionality", () => {
       }),
     );
 
-    expect(videoEl["src"]).toBe("https://example.com/video.mp4");
+    expect(videoEl.src).toBe("https://example.com/video.mp4");
     expect(mockHlsInstance.loadSource).not.toHaveBeenCalled();
   });
 });
@@ -338,7 +343,9 @@ describe("useHlsPlayer – error path coverage", () => {
     it("should swallow AbortError thrown by video.play()", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       const abortError = Object.assign(new Error("aborted"), {
         name: "AbortError",
@@ -382,7 +389,9 @@ describe("useHlsPlayer – error path coverage", () => {
     it("should log non-AbortError failures from video.play()", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       const networkError = Object.assign(new Error("not allowed"), {
         name: "NotAllowedError",

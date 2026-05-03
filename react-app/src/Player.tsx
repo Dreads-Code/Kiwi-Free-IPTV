@@ -124,7 +124,7 @@ const findCurrentProgramme = (
 
 const Player: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [epg, setEpg] = useState<EpgData>(new Map());
+  const [epg, setEpg] = useState<EpgData>(() => new Map());
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -153,7 +153,7 @@ const Player: React.FC = () => {
   const [focusLocation, setFocusLocation] = useState<"deck" | "header">("deck");
   const scheduleButtonRef = useRef<HTMLButtonElement>(null);
   const stremioButtonRef = useRef<HTMLButtonElement>(null);
-  const keyPressCooldown = useRef(false);
+  const keyPressCooldownRef = useRef(false);
   const modalDepthRef = useRef(0);
 
   // Internal state clearers (no history side effects)
@@ -184,39 +184,36 @@ const Player: React.FC = () => {
     setFocusLocation("deck");
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { channels: channelsData, epg: epgData } = await fetchAllData();
-        if (cancelled) return;
-        setChannels(channelsData);
-        setEpg(epgData);
-        if (channelsData.length > 0) {
-          setActiveChannelId(channelsData[0].id);
-        }
-      } catch (error_) {
-        if (!cancelled) {
-          setError(
-            error_ instanceof Error
-              ? error_.message
-              : "An unknown error occurred.",
-          );
-          console.error(error_);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadData = useCallback(async (isCancelled: { current: boolean }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { channels: channelsData, epg: epgData } = await fetchAllData();
+      if (isCancelled.current) return;
+      setChannels(channelsData);
+      setEpg(epgData);
+      if (channelsData.length > 0) {
+        setActiveChannelId(channelsData[0].id);
       }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
+    } catch (error_) {
+      if (!isCancelled.current) {
+        setError(
+          error_ instanceof Error ? error_.message : "An unknown error occurred.",
+        );
+        console.error(error_);
+      }
+    } finally {
+      if (!isCancelled.current) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const cancelled = { current: false };
+    void loadData(cancelled);
+    return () => {
+      cancelled.current = true;
+    };
+  }, [loadData]);
 
   const detailData = useMemo(() => {
     if (selectedScheduleItem) {
@@ -338,7 +335,7 @@ const Player: React.FC = () => {
     activeChannelId,
     focusLocation,
     headerFocusAnchor,
-    keyPressCooldown,
+    keyPressCooldownRef,
   });
 
   useLayoutEffect(() => {
@@ -351,17 +348,17 @@ const Player: React.FC = () => {
       activeChannelId,
       focusLocation,
       headerFocusAnchor,
-      keyPressCooldown,
+      keyPressCooldownRef,
     });
   });
 
   // Push state to history when a modal opens
   useEffect(() => {
     const depth =
-      Number(Boolean(playingChannel)) +
-      Number(Boolean(detailData)) +
+      Number(playingChannel !== null) +
+      Number(detailData !== null) +
       Number(scheduleViewConfig.isOpen) +
-      Number(Boolean(isStremioOpen));
+      Number(isStremioOpen);
 
     if (depth > modalDepthRef.current) {
       globalThis.history.pushState({ isModal: true, depth }, "");
@@ -388,7 +385,9 @@ const Player: React.FC = () => {
     };
 
     globalThis.addEventListener("popstate", handlePopState);
-    return () => globalThis.removeEventListener("popstate", handlePopState);
+    return () => {
+      globalThis.removeEventListener("popstate", handlePopState);
+    };
   }, [closePlayer, closeDetail, closeSchedule, closeStremio]);
 
   useEffect(() => {
@@ -434,15 +433,15 @@ const Player: React.FC = () => {
     };
 
     const handleChannelNavigation = (direction: "left" | "right") => {
-      const { focusLocation, channels, activeChannelId, keyPressCooldown } =
+      const { focusLocation, channels, activeChannelId, keyPressCooldownRef } =
         stateRef.current;
       if (focusLocation !== "deck" || channels.length === 0 || !activeChannelId)
         return;
 
-      if (keyPressCooldown.current) return;
-      keyPressCooldown.current = true;
+      if (keyPressCooldownRef.current) return;
+      keyPressCooldownRef.current = true;
       setTimeout(() => {
-        keyPressCooldown.current = false;
+        keyPressCooldownRef.current = false;
       }, 150);
 
       const currentIndex = channels.findIndex((c) => c.id === activeChannelId);
@@ -581,7 +580,7 @@ const Player: React.FC = () => {
             <span className="ml-2 block sm:inline">{error}</span>
             <button
               onClick={() => {
-                void loadData();
+                void loadData({ current: false });
               }}
               className="mt-4 rounded-full bg-(--md-sys-color-primary) px-4 py-2 font-semibold text-(--md-sys-color-on-primary)"
             >

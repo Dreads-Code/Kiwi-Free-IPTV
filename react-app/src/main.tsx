@@ -18,7 +18,7 @@ init()
       </StrictMode>,
     );
   })
-  .catch((error) => {
+  .catch((error: unknown) => {
     console.error("Failed to initialize WASM engine:", error);
     root.render(
       <div
@@ -49,7 +49,7 @@ init()
             fontSize: "0.9rem",
           }}
         >
-          {error.toString()}
+          {error instanceof Error ? error.message : String(error)}
         </pre>
       </div>,
     );

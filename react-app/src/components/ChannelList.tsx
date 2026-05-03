@@ -23,8 +23,10 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<Map<string, HTMLDivElement>>(new Map());
-  const isProgrammaticScrollActive = useRef(false);
-  const scrollEndTimeout = useRef<number | null>(null);
+  const isProgrammaticScrollActiveRef = useRef(false);
+  const scrollEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Use refs to keep the IntersectionObserver callback stable while accessing latest props.
   const activeChannelIdRef = useRef(activeChannelId);
@@ -53,7 +55,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
       (entries) => {
         // Ignore intersection changes during programmatic scrolls (keyboard navigation)
         // to prevent competing state updates and feedback loops.
-        if (isProgrammaticScrollActive.current) return;
+        if (isProgrammaticScrollActiveRef.current) return;
 
         for (const entry of entries) {
           if (entry.isIntersecting) {
@@ -88,23 +90,23 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
     const cardElement = cardsRef.current.get(activeChannelId);
     if (!cardElement) return;
 
-    isProgrammaticScrollActive.current = true;
+    isProgrammaticScrollActiveRef.current = true;
     cardElement.scrollIntoView({
       behavior: "smooth",
       inline: "center",
       block: "nearest",
     });
 
-    if (scrollEndTimeout.current) {
-      globalThis.clearTimeout(scrollEndTimeout.current);
+    if (scrollEndTimeoutRef.current) {
+      globalThis.clearTimeout(scrollEndTimeoutRef.current);
     }
-    scrollEndTimeout.current = globalThis.setTimeout(() => {
-      isProgrammaticScrollActive.current = false;
-    }, 600) as unknown as number;
+    scrollEndTimeoutRef.current = globalThis.setTimeout(() => {
+      isProgrammaticScrollActiveRef.current = false;
+    }, 600);
 
     return () => {
-      if (scrollEndTimeout.current) {
-        globalThis.clearTimeout(scrollEndTimeout.current);
+      if (scrollEndTimeoutRef.current) {
+        globalThis.clearTimeout(scrollEndTimeoutRef.current);
       }
     };
   }, [activeChannelId]);

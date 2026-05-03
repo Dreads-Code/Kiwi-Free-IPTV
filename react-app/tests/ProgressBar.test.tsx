@@ -48,11 +48,13 @@ describe("ProgressBar", () => {
     const { container } = render(<ProgressBar start={start} stop={stop} />);
 
     // Advance time by 30 minutes
-    vi.advanceTimersByTime(1_800_000);
+    act(() => {
+      vi.advanceTimersByTime(1_800_000);
 
-    // Note: ProgressBar uses an interval of 30 seconds to update
-    // We need to trigger the interval
-    vi.advanceTimersByTime(30_000);
+      // Note: ProgressBar uses an interval of 30 seconds to update
+      // We need to trigger the interval
+      vi.advanceTimersByTime(30_000);
+    });
 
     // Re-calculating in test to verify
     const bar = container.querySelector(

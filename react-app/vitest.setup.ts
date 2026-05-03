@@ -6,3 +6,10 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+// Mock IntersectionObserver
+globalThis.IntersectionObserver = class {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+};

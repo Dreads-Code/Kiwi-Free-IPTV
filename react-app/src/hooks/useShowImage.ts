@@ -11,6 +11,28 @@ const inflightRequests = new Map<
   Promise<{ poster: string | null; banner: string | null } | null>
 >();
 
+interface TvMazeShow {
+  id: number;
+  image?: {
+    original?: string;
+    medium?: string;
+  };
+}
+
+interface TvMazeSearchResult {
+  show: TvMazeShow;
+}
+
+interface TvMazeImage {
+  type: string;
+  main?: boolean;
+  resolutions?: {
+    original?: {
+      url?: string;
+    };
+  };
+}
+
 /**
  * A custom hook to fetch a TV show's poster and banner images.
  * It prioritizes the icon provided in the EPG data and falls back to standalone enrichment.
@@ -29,7 +51,7 @@ export const useProgramImage = (
 
   // Use the WASM engine to process the EPG icon locally
   const initialEpgIcon = programme?.icon
-    ? process_icon_url(programme.icon) || undefined
+    ? process_icon_url(programme.icon) ?? undefined
     : undefined;
 
   // Determine if we should use the EPG icon
@@ -65,7 +87,10 @@ export const useProgramImage = (
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           try {
-            const parsed = JSON.parse(cached);
+            const parsed = JSON.parse(cached) as {
+              poster: string | null;
+              banner: string | null;
+            };
             if (isMounted) {
               setFetchedData({
                 title: programme.title,
@@ -106,7 +131,7 @@ export const useProgramImage = (
             );
             if (!searchRes.ok) throw new Error("Search failed");
 
-            const searchData = await searchRes.json();
+            const searchData = (await searchRes.json()) as TvMazeSearchResult[];
             if (!searchData || searchData.length === 0) {
               return { poster: null, banner: null };
             }
@@ -114,22 +139,22 @@ export const useProgramImage = (
             const show = searchData[0].show;
             const showId = show.id;
 
-            let poster = show.image?.original || show.image?.medium || null;
+            let poster = show.image?.original ?? show.image?.medium ?? null;
             let banner = null;
 
             // Fetch additional assets if needed
-            const assetsUrl = `https://api.tvmaze.com/shows/${showId}/images`;
+            const assetsUrl = `https://api.tvmaze.com/shows/${showId.toString()}/images`;
             const assetsRes = await fetch(
               `/api/fetch?url=${encodeURIComponent(assetsUrl)}`,
             );
             if (assetsRes.ok) {
-              const assets = await assetsRes.json();
+              const assets = (await assetsRes.json()) as TvMazeImage[];
               for (const img of assets) {
-                if (!banner && img.type === "banner") {
-                  banner = img.resolutions?.original?.url || null;
+                if (banner === null && img.type === "banner") {
+                  banner = img.resolutions?.original?.url ?? null;
                 }
-                if (img.type === "poster" && img.main) {
-                  poster = img.resolutions?.original?.url || poster;
+                if (img.type === "poster" && img.main === true) {
+                  poster = img.resolutions?.original?.url ?? poster;
                 }
               }
             }

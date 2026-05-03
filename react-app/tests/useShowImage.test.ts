@@ -109,10 +109,11 @@ describe("useProgramImage", () => {
       expect(result.current.posterUrl).toBeNull();
 
       await waitFor(
-        () =>
+        () => {
           expect(result.current.posterUrl).toBe(
             "https://tvmaze.com/poster.jpg",
-          ),
+          );
+        },
         { timeout: 3000 },
       );
       expect(mockFetch).toHaveBeenCalledWith(
@@ -176,10 +177,11 @@ describe("useProgramImage", () => {
 
       // wait for debounce and fetch to complete
       await waitFor(
-        () =>
+        () => {
           expect(result.current.posterUrl).toBe(
             "https://tvmaze.com/poster.jpg",
-          ),
+          );
+        },
         { timeout: 3000 },
       );
 
@@ -213,10 +215,11 @@ describe("useProgramImage", () => {
 
       // Wait for the first enrichment to complete
       await waitFor(
-        () =>
+        () => {
           expect(result.current.posterUrl).toBe(
             "https://tvmaze.com/poster.jpg",
-          ),
+          );
+        },
         { timeout: 3000 },
       );
       // First enrichment = 2 fetch calls (search + assets)
@@ -231,10 +234,11 @@ describe("useProgramImage", () => {
       rerender({ prog: newProg, chan: forcedChannel });
 
       await waitFor(
-        () =>
+        () => {
           expect(result.current.posterUrl).toBe(
             "https://tvmaze.com/poster.jpg",
-          ),
+          );
+        },
         { timeout: 3000 },
       );
       expect(mockFetch).toHaveBeenCalledTimes(4);
@@ -251,9 +255,14 @@ describe("useProgramImage", () => {
         useProgramImage(mockProgramme, forcedChannel),
       );
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false);
+        },
+        {
+          timeout: 3000,
+        },
+      );
       expect(result.current.posterUrl).toBeNull();
     });
 
@@ -265,9 +274,14 @@ describe("useProgramImage", () => {
         useProgramImage(mockProgramme, forcedChannel),
       );
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false);
+        },
+        {
+          timeout: 3000,
+        },
+      );
       expect(result.current.posterUrl).toBeNull();
     });
 
@@ -278,7 +292,9 @@ describe("useProgramImage", () => {
     it("should return null posterUrl when inner enrichment fetch throws (line 138)", async () => {
       const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
       // Suppress warn output during this test
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        /* no-op */
+      });
       // All fetch calls reject (covers the inner catch path)
       mockFetch.mockRejectedValue(new Error("inner network failure"));
 
@@ -289,9 +305,14 @@ describe("useProgramImage", () => {
         ),
       );
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false);
+        },
+        {
+          timeout: 3000,
+        },
+      );
 
       // The inner catch should swallow the error; poster must be null
       expect(result.current.posterUrl).toBeNull();
@@ -306,7 +327,9 @@ describe("useProgramImage", () => {
     // -----------------------------------------------------------------------
     it("should recover gracefully when outer enrichment code throws (line 161)", async () => {
       const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        /* no-op */
+      });
 
       // Successful search response
       mockFetch
@@ -346,9 +369,14 @@ describe("useProgramImage", () => {
         ),
       );
 
-      await waitFor(() => expect(result.current.loading).toBe(false), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false);
+        },
+        {
+          timeout: 3000,
+        },
+      );
 
       // The outer catch should have fired; loading must return to false
       // The component should not crash even though setItem threw

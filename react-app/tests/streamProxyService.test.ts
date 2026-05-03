@@ -69,7 +69,9 @@ describe("streamProxyService", () => {
     it("should fall back to the original URL when encoding throws (line 51)", () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       // Force btoa to throw so the catch block is exercised
       vi.stubGlobal("btoa", () => {

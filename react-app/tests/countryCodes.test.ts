@@ -6,11 +6,11 @@ describe("countryCodes", () => {
     expect(countryCodeMap["New Zealand"]).toBe("NZ");
     expect(countryCodeMap["United Kingdom"]).toBe("GB");
     expect(countryCodeMap["United States"]).toBe("US");
-    expect(countryCodeMap["Australia"]).toBe("AU");
+    expect(countryCodeMap.Australia).toBe("AU");
   });
 
   it("should return undefined for unknown country names", () => {
-    expect(countryCodeMap["Narnia"]).toBeUndefined();
+    expect(countryCodeMap.Narnia).toBeUndefined();
     expect(countryCodeMap["Unknown Country"]).toBeUndefined();
   });
 

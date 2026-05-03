@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 
 export function useControlsVisibility(isPlaying: boolean) {
   const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const controlsTimeoutRef = useRef<number | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPlayingRef = useRef(isPlaying);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export function useControlsVisibility(isPlaying: boolean) {
       if (isPlayingRef.current) {
         setIsControlsVisible(false);
       }
-    }, 3000) as unknown as number;
+    }, 3000);
   }, []);
 
   const cancelAutoHide = useCallback(() => {

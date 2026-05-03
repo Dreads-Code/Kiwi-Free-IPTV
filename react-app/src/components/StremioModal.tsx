@@ -22,25 +22,30 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
   // Handle visibility and focus in a single effect when isOpen changes
   useEffect(() => {
     if (isOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsVisible(true);
       setModalFocusIndex(0);
       // Small delay to ensure render before focus
-      const focusTimer = setTimeout(() => installRef.current?.focus(), 50);
-      return () => clearTimeout(focusTimer);
+      const focusTimer = setTimeout(() => {
+        installRef.current?.focus();
+      }, 50);
+      return () => {
+        clearTimeout(focusTimer);
+      };
     }
 
     // Use a separate timer for exit animation
-    const exitTimer = setTimeout(() => setIsVisible(false), 300);
-    return () => clearTimeout(exitTimer);
+    const exitTimer = setTimeout(() => {
+      setIsVisible(false);
+    }, 300);
+    return () => {
+      clearTimeout(exitTimer);
+    };
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-
       switch (e.key) {
         case "Escape": {
           e.preventDefault();
@@ -71,7 +76,9 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
     };
 
     globalThis.addEventListener("keydown", handleKeyDown);
-    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      globalThis.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isVisible && !isOpen) return null;
@@ -81,12 +88,17 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
   const stremioUrl = `stremio://${globalThis.location.host}/manifest.json`;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(manifestUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-    });
+    void navigator.clipboard
+      .writeText(manifestUrl)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => {
+          setCopied(false);
+        }, 2000);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to copy:", err);
+      });
   };
 
   const handleInstall = () => {

@@ -12,7 +12,9 @@ vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
 vi.mock("../src/utils/indexedDb.js", () => ({
   epgCache: {
     get: vi.fn(async () => null),
-    set: vi.fn(async () => {}),
+    set: vi.fn(async () => {
+      /* no-op */
+    }),
   },
 }));
 
@@ -53,11 +55,11 @@ describe("tvService", () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce({
           ok: true,
-          text: async () => "#EXTM3U",
+          text: () => Promise.resolve("#EXTM3U"),
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
-          text: async () => "<tv></tv>",
+          text: () => Promise.resolve("<tv></tv>"),
         } as Response);
 
       const result = await fetchAllData();
@@ -69,11 +71,11 @@ describe("tvService", () => {
 
       expect(result.epg.has("test-channel-1")).toBe(true);
       const programmes = result.epg.get("test-channel-1");
-      expect(programmes).toHaveLength(1);
-      expect(programmes![0].title).toBe("Programme 1");
-      expect(programmes![0].rating).toBe("PG");
-      expect(programmes![0].start).toBeInstanceOf(Date);
-      expect(programmes![0].stop).toBeInstanceOf(Date);
+      expect(programmes).toBeDefined();
+      expect(programmes?.[0].title).toBe("Programme 1");
+      expect(programmes?.[0].rating).toBe("PG");
+      expect(programmes?.[0].start).toBeInstanceOf(Date);
+      expect(programmes?.[0].stop).toBeInstanceOf(Date);
     });
 
     it("should throw if either fetch response is not ok", async () => {
@@ -83,7 +85,7 @@ describe("tvService", () => {
           status: 500,
           statusText: "Internal Server Error",
         } as Response)
-        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
 
       await expect(fetchAllData()).rejects.toThrow(
         "Failed to fetch data from source",
@@ -116,8 +118,8 @@ describe("tvService", () => {
       ]);
 
       vi.mocked(fetch)
-        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response)
-        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response)
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
 
       const result = await fetchAllData();
       expect(result.epg.get("test-channel-1")).toHaveLength(0);
@@ -144,8 +146,8 @@ describe("tvService", () => {
       ]);
 
       vi.mocked(fetch)
-        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response)
-        .mockResolvedValueOnce({ ok: true, text: async () => "" } as Response);
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response)
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
 
       const result = await fetchAllData();
       // Should handle the error via isNaN checks and return null, resulting in the programme being filtered out

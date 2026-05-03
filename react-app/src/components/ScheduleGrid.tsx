@@ -32,7 +32,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
     clientHeight,
   }) => {
     const gridRef = useRef<HTMLDivElement>(null);
-    const lastFocusedCoords = useRef<{ channel: number; prog: number } | null>(
+    const lastFocusedCoordsRef = useRef<{ channel: number; prog: number } | null>(
       null,
     );
 
@@ -72,9 +72,9 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           let targetChannel: number;
           let targetProg: number;
 
-          if (lastFocusedCoords.current) {
-            targetChannel = lastFocusedCoords.current.channel;
-            targetProg = lastFocusedCoords.current.prog;
+          if (lastFocusedCoordsRef.current) {
+            targetChannel = lastFocusedCoordsRef.current.channel;
+            targetProg = lastFocusedCoordsRef.current.prog;
 
             // Safety check: ensure coordinates are still valid
             if (targetChannel >= memoizedSchedule.length) targetChannel = 0;
@@ -115,8 +115,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       channelIdx: number,
       progIdx: number,
     ) => {
-      const currentProg = memoizedSchedule[channelIdx]?.programmes[progIdx];
-      if (!currentProg) return { nextChannel: channelIdx, nextProg: progIdx };
+      const currentProg = memoizedSchedule[channelIdx].programmes[progIdx];
       const currentTime = currentProg.startMs + 1000;
       const nextChannel =
         key === "ArrowLeft"
@@ -124,8 +123,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           : Math.min(memoizedSchedule.length - 1, channelIdx + 1);
       if (nextChannel === channelIdx) return { nextChannel, nextProg: progIdx };
 
-      const nextProgs = memoizedSchedule[nextChannel]?.programmes;
-      if (!nextProgs) return { nextChannel, nextProg: progIdx };
+      const nextProgs = memoizedSchedule[nextChannel].programmes;
 
       const foundIdx = findCurrentProgrammeIndex(
         nextProgs,
@@ -182,8 +180,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)
         ) {
           e.preventDefault();
-          const targetChannel = lastFocusedCoords.current?.channel ?? 0;
-          const targetProg = lastFocusedCoords.current?.prog ?? 0;
+          const targetChannel = lastFocusedCoordsRef.current?.channel ?? 0;
+          const targetProg = lastFocusedCoordsRef.current?.prog ?? 0;
           const el = grid.querySelector<HTMLElement>(
             `[data-channel="${targetChannel.toString()}"][data-prog="${targetProg.toString()}"]`,
           );
@@ -213,7 +211,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           `[data-channel="${nextChannel.toString()}"][data-prog="${nextProg.toString()}"]`,
         );
         if (nextEl) {
-          lastFocusedCoords.current = { channel: nextChannel, prog: nextProg };
+          lastFocusedCoordsRef.current = { channel: nextChannel, prog: nextProg };
           nextEl.focus();
           nextEl.scrollIntoView({
             behavior: "smooth",
@@ -300,7 +298,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
                     pixelsPerHour={pixelsPerHour}
                     scheduleStartTime={scheduleStartTime}
                     onSelect={() => {
-                      lastFocusedCoords.current = { channel: cIdx, prog: pIdx };
+                      lastFocusedCoordsRef.current = { channel: cIdx, prog: pIdx };
                       onProgrammeSelect(prog, channel);
                     }}
                     data-channel={cIdx.toString()}
