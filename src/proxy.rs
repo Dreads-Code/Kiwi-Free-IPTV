@@ -184,7 +184,7 @@ pub async fn proxy_path_handler(
                 .status(StatusCode::BAD_REQUEST)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid base64 encoding"))
-                .unwrap();
+                .expect("Failed to build error response for invalid base64");
         }
     };
 
@@ -195,7 +195,7 @@ pub async fn proxy_path_handler(
                 .status(StatusCode::BAD_REQUEST)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid JSON payload"))
-                .unwrap();
+                .expect("Failed to build error response for invalid JSON");
         }
     };
 
@@ -227,7 +227,7 @@ pub async fn proxy_path_handler(
             .header("Location", &data.url)
             .header("Access-Control-Allow-Origin", "*")
             .body(Body::empty())
-            .unwrap();
+            .expect("Failed to build redirect response");
     }
 
     if cfg!(debug_assertions) {
@@ -338,7 +338,7 @@ pub async fn do_proxy(
             .status(StatusCode::FORBIDDEN)
             .header("access-control-allow-origin", "*")
             .body(Body::from("Access denied: Unsafe or unauthorized URL"))
-            .unwrap();
+            .expect("Failed to build access denied response");
     }
 
     // Only trust forwarding headers if we are running behind a known trusted proxy.
@@ -349,7 +349,7 @@ pub async fn do_proxy(
     let is_trusted = request_headers.contains_key("x-vercel-id")
         || std::env::var("IPTV_TRUST_PROXY_HEADERS")
             .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
-            .unwrap_or(false);
+            .unwrap_or_default();
 
     let user_ip = if is_trusted {
         request_headers
@@ -557,7 +557,7 @@ pub async fn do_proxy(
                 let mut response = Response::builder()
                     .status(status)
                     .body(Body::empty())
-                    .unwrap();
+                    .expect("Failed to build HEAD response");
                 *response.headers_mut() = response_headers;
                 return response;
             }
@@ -573,7 +573,7 @@ pub async fn do_proxy(
                     let mut response = Response::builder()
                         .status(status)
                         .body(Body::from(rewritten_text))
-                        .unwrap();
+                        .expect("Failed to build M3U8 response");
                     *response.headers_mut() = response_headers;
                     return response;
                 }
@@ -582,7 +582,10 @@ pub async fn do_proxy(
                     response_headers.insert("content-type", HeaderValue::from_static("video/mp2t"));
                 }
                 let body = Body::from_stream(res.bytes_stream());
-                let mut response = Response::builder().status(status).body(body).unwrap();
+                let mut response = Response::builder()
+                    .status(status)
+                    .body(body)
+                    .expect("Failed to build stream response");
                 *response.headers_mut() = response_headers;
                 return response;
             }
@@ -590,7 +593,7 @@ pub async fn do_proxy(
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Body::from("Failed to process stream"))
-                .unwrap()
+                .expect("Failed to build internal error response")
         }
         Err(e) => {
             error!("Network error in proxy: {}", e);
@@ -598,7 +601,7 @@ pub async fn do_proxy(
                 .status(StatusCode::BAD_GATEWAY)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Upstream error"))
-                .unwrap()
+                .expect("Failed to build upstream error response")
         }
     }
 }
@@ -616,7 +619,9 @@ pub fn rewrite_m3u8(
     };
 
     let mut output = String::new();
-    let re = RE_URI.get_or_init(|| regex::Regex::new(r#"URI=(["'])([^"']+)["']"#).unwrap());
+    let re = RE_URI.get_or_init(|| {
+        regex::Regex::new(r#"URI=(["'])([^"']+)["']"#).expect("Invalid regex for URI parsing")
+    });
 
     for line in text.lines() {
         let trimmed = line.trim();

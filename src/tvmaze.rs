@@ -190,9 +190,12 @@ pub fn clean_title_for_search(title: &str) -> String {
     let mut cleaned = title.trim().to_string();
     let mut last_cleaned;
 
-    let regex_year = regex::Regex::new(r"\s{0,5}\(\d{4}\)$").unwrap();
-    let regex_state = regex::Regex::new(r"(?i)\s{0,5}\((?:Premiere|New|Final|Repeat)\)$").unwrap();
-    let regex_season = regex::Regex::new(r"(?i)\s*-\s*s\d+e\d+.*$").unwrap();
+    let regex_year =
+        regex::Regex::new(r"\s{0,5}\(\d{4}\)$").expect("Invalid regex for year removal");
+    let regex_state = regex::Regex::new(r"(?i)\s{0,5}\((?:Premiere|New|Final|Repeat)\)$")
+        .expect("Invalid regex for state removal");
+    let regex_season =
+        regex::Regex::new(r"(?i)\s*-\s*s\d+e\d+.*$").expect("Invalid regex for season removal");
 
     loop {
         last_cleaned = cleaned.clone();

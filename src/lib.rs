@@ -92,7 +92,7 @@ pub fn build_router() -> Router {
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(32)
             .build()
-            .unwrap(),
+            .expect("Failed to build proxy HTTP client"),
     );
 
     // Fetch client: follows redirects automatically for simple byte-pipe pass-throughs.
@@ -101,7 +101,7 @@ pub fn build_router() -> Router {
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(32)
             .build()
-            .unwrap(),
+            .expect("Failed to build fetch HTTP client"),
     );
 
     let state = AppState {
@@ -204,7 +204,12 @@ async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
     }
 
     let mut response_headers = HeaderMap::new();
-    response_headers.insert("Cache-Control", "max-age=86400, public".parse().unwrap());
+    response_headers.insert(
+        "Cache-Control",
+        "max-age=86400, public"
+            .parse()
+            .expect("Invalid Cache-Control header value"),
+    );
 
     (response_headers, Json(manifest))
 }
@@ -237,7 +242,7 @@ async fn data_handler(State(state): State<AppState>) -> impl IntoResponse {
         "Cache-Control",
         "s-maxage=60, stale-while-revalidate=30, max-age=0, public"
             .parse()
-            .unwrap(),
+            .expect("Invalid Cache-Control header value"),
     );
 
     match iptv::fetch_data(&state).await {
@@ -273,10 +278,15 @@ async fn fetch_pass_through_handler(
             let status = res.status();
             let mut headers = HeaderMap::new();
             // Critical: Add CORS headers so the browser can read the response
-            headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
+            headers.insert(
+                "Access-Control-Allow-Origin",
+                "*".parse().expect("Invalid CORS header value"),
+            );
             headers.insert(
                 "Access-Control-Allow-Methods",
-                "GET, OPTIONS".parse().unwrap(),
+                "GET, OPTIONS"
+                    .parse()
+                    .expect("Invalid CORS methods header value"),
             );
 
             if let Some(ct) = res.headers().get("content-type") {
@@ -331,7 +341,7 @@ async fn resource_handler(
         "Cache-Control",
         "s-maxage=60, stale-while-revalidate=30, max-age=0, public"
             .parse()
-            .unwrap(),
+            .expect("Invalid Cache-Control header value"),
     );
 
     if type_name != "tv" {

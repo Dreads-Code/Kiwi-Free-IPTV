@@ -217,8 +217,12 @@ pub fn parse_channels(m3u8_text: &str, epg_text: &str) -> Vec<ChannelMeta> {
     let mut current_name = None;
     let mut current_headers: HashMap<String, String> = HashMap::new();
 
-    let re_id = RE_TVG_ID.get_or_init(|| regex::Regex::new(r#"tvg-id="([^"]*)""#).unwrap());
-    let re_logo = RE_TVG_LOGO.get_or_init(|| regex::Regex::new(r#"tvg-logo="([^"]*)""#).unwrap());
+    let re_id = RE_TVG_ID.get_or_init(|| {
+        regex::Regex::new(r#"tvg-id="([^"]*)""#).expect("Invalid regex for tvg-id parsing")
+    });
+    let re_logo = RE_TVG_LOGO.get_or_init(|| {
+        regex::Regex::new(r#"tvg-logo="([^"]*)""#).expect("Invalid regex for tvg-logo parsing")
+    });
 
     for line in m3u8_text.lines() {
         let line = line.trim();
