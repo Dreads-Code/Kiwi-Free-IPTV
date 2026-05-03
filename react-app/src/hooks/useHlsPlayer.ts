@@ -352,19 +352,22 @@ export function useHlsPlayer({
         video.addEventListener("loadedmetadata", handleManifestParsed);
 
         const handleTracksChanged = () => {
-          const textTracks = video.textTracks;
+          const textTracks = [...video.textTracks];
           const tracks = [];
-          for (let i = 0; i < textTracks.length; i++) {
-            const track = textTracks[i];
+          let i = 0;
+          for (const track of textTracks) {
+            let label = `Track ${(i + 1).toString()}`;
+            if (track.label !== "") {
+              label = track.label;
+            } else if (track.language !== "") {
+              label = track.language;
+            }
+
             tracks.push({
               id: i,
-              label:
-                track.label !== ""
-                  ? track.label
-                  : track.language !== ""
-                    ? track.language
-                    : `Track ${(i + 1).toString()}`,
+              label,
             });
+            i++;
           }
           setSubtitleTracks(tracks);
         };
@@ -413,9 +416,11 @@ export function useHlsPlayer({
       if (hlsRef.current) {
         hlsRef.current.subtitleTrack = trackId;
       } else if (videoRef.current) {
-        const textTracks = videoRef.current.textTracks;
-        for (let i = 0; i < textTracks.length; i++) {
-          textTracks[i].mode = i === trackId ? "showing" : "hidden";
+        const textTracks = [...videoRef.current.textTracks];
+        let i = 0;
+        for (const track of textTracks) {
+          track.mode = i === trackId ? "showing" : "hidden";
+          i++;
         }
       }
     },

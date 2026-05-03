@@ -1,13 +1,14 @@
 {
   "name": "iptv-nz-stremio-root",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "scripts": {
     "build": "wasm-pack build --target web --out-dir react-app/src/wasm -- --no-default-features && cargo build --release && npm install --prefix react-app && npm run build --prefix react-app",
     "vercel-build": "npm install --prefix react-app && npm run build --prefix react-app",
     "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"cargo run --bin local\" \"npm run dev --prefix react-app\"",
     "lint": "cargo clippy -- -D warnings && npm run lint --prefix react-app",
-    "fmt": "cargo fmt && npm run format --prefix react-app"
+    "fmt": "cargo fmt && npm run format --prefix react-app",
+    "test": "cargo test && npm run test --prefix react-app"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

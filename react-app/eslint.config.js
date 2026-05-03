@@ -25,7 +25,7 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir: String(import.meta.dirname),
         warnOnUnsupportedTypeScriptVersion: false,
       },
     },

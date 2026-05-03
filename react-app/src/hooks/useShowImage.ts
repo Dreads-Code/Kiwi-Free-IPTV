@@ -51,7 +51,7 @@ export const useProgramImage = (
 
   // Use the WASM engine to process the EPG icon locally
   const initialEpgIcon = programme?.icon
-    ? process_icon_url(programme.icon) ?? undefined
+    ? (process_icon_url(programme.icon) ?? undefined)
     : undefined;
 
   // Determine if we should use the EPG icon
@@ -132,7 +132,7 @@ export const useProgramImage = (
             if (!searchRes.ok) throw new Error("Search failed");
 
             const searchData = (await searchRes.json()) as TvMazeSearchResult[];
-            if (!searchData || searchData.length === 0) {
+            if (searchData.length === 0) {
               return { poster: null, banner: null };
             }
 

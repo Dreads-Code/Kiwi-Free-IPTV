@@ -11,10 +11,8 @@ vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
 // Mock IndexedDB cache so tests don't leak state between runs
 vi.mock("../src/utils/indexedDb.js", () => ({
   epgCache: {
-    get: vi.fn(async () => null),
-    set: vi.fn(async () => {
-      /* no-op */
-    }),
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -85,7 +83,11 @@ describe("tvService", () => {
           status: 500,
           statusText: "Internal Server Error",
         } as Response)
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(""),
+        } as Response);
 
       await expect(fetchAllData()).rejects.toThrow(
         "Failed to fetch data from source",
@@ -118,8 +120,14 @@ describe("tvService", () => {
       ]);
 
       vi.mocked(fetch)
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response)
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () => Promise.resolve(""),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () => Promise.resolve(""),
+        } as Response);
 
       const result = await fetchAllData();
       expect(result.epg.get("test-channel-1")).toHaveLength(0);
@@ -146,8 +154,14 @@ describe("tvService", () => {
       ]);
 
       vi.mocked(fetch)
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response)
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve("") } as Response);
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () => Promise.resolve(""),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () => Promise.resolve(""),
+        } as Response);
 
       const result = await fetchAllData();
       // Should handle the error via isNaN checks and return null, resulting in the programme being filtered out

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import ProgressBar from "../src/components/ProgressBar";
 
 describe("ProgressBar", () => {

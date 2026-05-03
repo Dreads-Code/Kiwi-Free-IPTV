@@ -32,9 +32,10 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
     clientHeight,
   }) => {
     const gridRef = useRef<HTMLDivElement>(null);
-    const lastFocusedCoordsRef = useRef<{ channel: number; prog: number } | null>(
-      null,
-    );
+    const lastFocusedCoordsRef = useRef<{
+      channel: number;
+      prog: number;
+    } | null>(null);
 
     const memoizedSchedule = React.useMemo(() => {
       const start = scheduleStartTime.getTime();
@@ -211,7 +212,10 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           `[data-channel="${nextChannel.toString()}"][data-prog="${nextProg.toString()}"]`,
         );
         if (nextEl) {
-          lastFocusedCoordsRef.current = { channel: nextChannel, prog: nextProg };
+          lastFocusedCoordsRef.current = {
+            channel: nextChannel,
+            prog: nextProg,
+          };
           nextEl.focus();
           nextEl.scrollIntoView({
             behavior: "smooth",
@@ -298,7 +302,10 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
                     pixelsPerHour={pixelsPerHour}
                     scheduleStartTime={scheduleStartTime}
                     onSelect={() => {
-                      lastFocusedCoordsRef.current = { channel: cIdx, prog: pIdx };
+                      lastFocusedCoordsRef.current = {
+                        channel: cIdx,
+                        prog: pIdx,
+                      };
                       onProgrammeSelect(prog, channel);
                     }}
                     data-channel={cIdx.toString()}

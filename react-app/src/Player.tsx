@@ -154,6 +154,9 @@ const Player: React.FC = () => {
   const scheduleButtonRef = useRef<HTMLButtonElement>(null);
   const stremioButtonRef = useRef<HTMLButtonElement>(null);
   const keyPressCooldownRef = useRef(false);
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const modalDepthRef = useRef(0);
 
   // Internal state clearers (no history side effects)
@@ -185,8 +188,12 @@ const Player: React.FC = () => {
   }, []);
 
   const loadData = useCallback(async (isCancelled: { current: boolean }) => {
-    setLoading(true);
-    setError(null);
+    requestAnimationFrame(() => {
+      if (!isCancelled.current) {
+        setLoading(true);
+        setError(null);
+      }
+    });
     try {
       const { channels: channelsData, epg: epgData } = await fetchAllData();
       if (isCancelled.current) return;
@@ -198,7 +205,9 @@ const Player: React.FC = () => {
     } catch (error_) {
       if (!isCancelled.current) {
         setError(
-          error_ instanceof Error ? error_.message : "An unknown error occurred.",
+          error_ instanceof Error
+            ? error_.message
+            : "An unknown error occurred.",
         );
         console.error(error_);
       }
@@ -209,7 +218,11 @@ const Player: React.FC = () => {
 
   useEffect(() => {
     const cancelled = { current: false };
-    void loadData(cancelled);
+    requestAnimationFrame(() => {
+      if (!cancelled.current) {
+        void loadData(cancelled);
+      }
+    });
     return () => {
       cancelled.current = true;
     };
@@ -440,8 +453,14 @@ const Player: React.FC = () => {
 
       if (keyPressCooldownRef.current) return;
       keyPressCooldownRef.current = true;
-      setTimeout(() => {
+
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+
+      navigationTimeoutRef.current = setTimeout(() => {
         keyPressCooldownRef.current = false;
+        navigationTimeoutRef.current = null;
       }, 150);
 
       const currentIndex = channels.findIndex((c) => c.id === activeChannelId);
@@ -530,6 +549,9 @@ const Player: React.FC = () => {
     globalThis.addEventListener("keydown", handleKeyWrapper);
     return () => {
       globalThis.removeEventListener("keydown", handleKeyWrapper);
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
     };
   }, [
     handleClosePlayer,

@@ -22,8 +22,10 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
   // Handle visibility and focus in a single effect when isOpen changes
   useEffect(() => {
     if (isOpen) {
-      setIsVisible(true);
-      setModalFocusIndex(0);
+      requestAnimationFrame(() => {
+        setIsVisible(true);
+        setModalFocusIndex(0);
+      });
       // Small delay to ensure render before focus
       const focusTimer = setTimeout(() => {
         installRef.current?.focus();
@@ -96,8 +98,8 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
           setCopied(false);
         }, 2000);
       })
-      .catch((err: unknown) => {
-        console.error("Failed to copy:", err);
+      .catch((error: unknown) => {
+        console.error("Failed to copy:", error);
       });
   };
 

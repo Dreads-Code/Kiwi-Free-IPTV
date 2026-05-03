@@ -121,7 +121,8 @@ export const fetchAllData = async (): Promise<{
     const m3u8Res = await fetch(
       `/api/fetch?url=${encodeURIComponent(MJH_NZ_M3U8)}`,
     );
-    if (!m3u8Res.ok) throw new Error(`Failed to fetch M3U8: ${m3u8Res.status}`);
+    if (!m3u8Res.ok)
+      throw new Error(`Failed to fetch M3U8: ${m3u8Res.status.toString()}`);
     m3u8Text = await m3u8Res.text();
     epgText = cachedEpg;
   } else {
@@ -132,7 +133,7 @@ export const fetchAllData = async (): Promise<{
 
     if (!m3u8Res.ok || !epgRes.ok) {
       throw new Error(
-        `Failed to fetch data from source: M3U8=${m3u8Res.status}, EPG=${epgRes.status}`,
+        `Failed to fetch data from source: M3U8=${m3u8Res.status.toString()}, EPG=${epgRes.status.toString()}`,
       );
     }
 
@@ -154,7 +155,7 @@ export const fetchAllData = async (): Promise<{
     channels.push({
       id: meta.id,
       name: meta.name,
-      logo: process_icon_url(meta.logo || "") || meta.logo || "",
+      logo: process_icon_url(meta.logo ?? "") ?? meta.logo ?? "",
       url: meta.url,
       epg_id: meta.id,
       category: meta.category as Channel["category"],
@@ -177,11 +178,11 @@ export const fetchAllData = async (): Promise<{
         title: clean_show_title(p.title ?? "No Title"),
         description: p.desc ?? meta.description,
         rating: p.rating?.value,
-        icon: process_icon_url(p.icon?.src || "") || p.icon?.src,
+        icon: process_icon_url(p.icon?.src ?? "") ?? p.icon?.src,
         categories: p.category,
         date: p.date,
         starRating: p.star_rating?.value,
-      } as Programme);
+      });
     }
     epg.set(meta.id, programmes);
   }

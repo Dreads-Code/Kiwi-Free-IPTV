@@ -1,5 +1,16 @@
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
+
+const MockHlsEvents = {
+  MANIFEST_PARSED: "manifestParsed",
+  ERROR: "error",
+} as const;
+
+const MockHlsErrorTypes = {
+  NETWORK_ERROR: "networkError",
+  MEDIA_ERROR: "mediaError",
+} as const;
+
 const mockHlsInstance = {
   loadSource: vi.fn(),
   attachMedia: vi.fn(),
@@ -11,16 +22,17 @@ const hlsIsSupported = () => true;
 
 class MockHls {
   static readonly isSupported = vi.fn(hlsIsSupported);
-  static readonly Events = {
-    MANIFEST_PARSED: "manifestParsed",
-    ERROR: "error",
-  } as const;
-  static readonly ErrorTypes = {
-    NETWORK_ERROR: "networkError",
-    MEDIA_ERROR: "mediaError",
-  } as const;
+  static readonly Events = MockHlsEvents;
+  static readonly ErrorTypes = MockHlsErrorTypes;
+
   constructor() {
     return mockHlsInstance as unknown as MockHls;
+  }
+
+  // Dummy method to satisfy the @typescript-eslint/no-extraneous-class rule
+  // by ensuring the class has at least one non-static member.
+  public init(): void {
+    /* no-op */
   }
 }
 
@@ -58,14 +70,14 @@ describe("VideoPlayer", () => {
     // Re-stub Hls after vitest.setup.ts afterEach runs vi.unstubAllGlobals()
     vi.stubGlobal("Hls", MockHls);
     // Default mock implementation
-    (streamProxyService.resolveStreamUrl as Mock).mockResolvedValue(
+    vi.mocked(streamProxyService.resolveStreamUrl).mockResolvedValue(
       mockChannel.url,
     );
     // jsdom's HTMLMediaElement.play() returns undefined; mock it to return a Promise
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
       configurable: true,
       writable: true,
-      value: vi.fn().mockResolvedValue(),
+      value: vi.fn(() => Promise.resolve()),
     });
   });
 
@@ -113,10 +125,12 @@ describe("VideoPlayer", () => {
     );
   });
 
-  it("should display loading state initially (buffering)", async () => {
+  it("should display loading state initially (buffering)", () => {
     // Mock it to never resolve so resolvedUrl stays null
     vi.mocked(streamProxyService.resolveStreamUrl).mockReturnValue(
-      new Promise(() => {}),
+      new Promise(() => {
+        /* never resolve */
+      }),
     );
 
     const { container } = render(
@@ -160,7 +174,9 @@ describe("VideoPlayer", () => {
     it("should catch and log errors from video.play() triggered by spacebar (line 128)", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       render(
         <VideoPlayer
@@ -171,9 +187,9 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
 
       // Simulate spacebar keydown to trigger video.play()
       document.dispatchEvent(
@@ -182,14 +198,16 @@ describe("VideoPlayer", () => {
 
       // The video element itself is a mock without a real play(); any error
       // should be swallowed without crashing the component
-      expect(consoleErrorSpy).not.toThrow?.();
+      expect(consoleErrorSpy).not.toThrow();
       consoleErrorSpy.mockRestore();
     });
 
     it("should catch and log errors from handleFullscreenToggle() triggered by 'f' key (line 137)", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       render(
         <VideoPlayer
@@ -200,9 +218,9 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
 
       // Stub requestFullscreen to reject
       const requestFullscreenMock = vi
@@ -228,7 +246,7 @@ describe("VideoPlayer", () => {
       });
 
       // The catch swallows the error; component must still be mounted
-      expect(consoleErrorSpy).not.toThrow?.();
+      expect(consoleErrorSpy).not.toThrow();
       consoleErrorSpy.mockRestore();
     });
   });
@@ -240,7 +258,9 @@ describe("VideoPlayer", () => {
     it("should log non-AbortError from video.play() in handlePlayPause", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       render(
         <VideoPlayer
@@ -251,20 +271,20 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
 
       // Click the overlay to trigger handlePlayPause
       const overlay = document.querySelector(".absolute.inset-0.z-10");
       if (overlay) {
-        await act(async () => {
+        act(() => {
           overlay.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         });
       }
 
       // No crash expected; errors are swallowed
-      expect(consoleErrorSpy).not.toThrow?.();
+      expect(consoleErrorSpy).not.toThrow();
       consoleErrorSpy.mockRestore();
     });
   });
@@ -276,7 +296,9 @@ describe("VideoPlayer", () => {
     it("should catch and log PiP errors without crashing the component", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => {
+          /* no-op */
+        });
 
       // Make requestPictureInPicture throw
       Object.defineProperty(
@@ -298,12 +320,12 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
 
       // The PiP toggle catch should not re-throw
-      expect(consoleErrorSpy).not.toThrow?.();
+      expect(consoleErrorSpy).not.toThrow();
       consoleErrorSpy.mockRestore();
     });
   });
@@ -325,9 +347,9 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
       // Component should still be mounted (no unhandled rejection)
       expect(document.body).toBeTruthy();
     });
@@ -342,9 +364,9 @@ describe("VideoPlayer", () => {
         />,
       );
 
-      await waitFor(() =>
-        expect(mockHlsInstance.loadSource).toHaveBeenCalled(),
-      );
+      await waitFor(() => {
+        expect(mockHlsInstance.loadSource).toHaveBeenCalled();
+      });
       // Component should still be mounted (no unhandled rejection)
       expect(document.body).toBeTruthy();
     });

@@ -33,11 +33,9 @@ class IndexedDbCache {
       };
 
       request.addEventListener("error", (event) => {
-        console.error(
-          "IndexedDB error:",
-          (event.target as IDBOpenDBRequest).error,
-        );
-        reject((event.target as IDBOpenDBRequest).error);
+        const error = (event.target as IDBOpenDBRequest).error;
+        console.error("IndexedDB error:", error);
+        reject(error ?? new Error("Unknown IndexedDB error"));
       });
     });
   }
@@ -45,7 +43,10 @@ class IndexedDbCache {
   async set(id: string, data: string): Promise<void> {
     await this.init();
     return new Promise((resolve, reject) => {
-      if (!this.db) return reject("DB not initialized");
+      if (!this.db) {
+        reject(new Error("DB not initialized"));
+        return;
+      }
 
       const transaction = this.db.transaction([STORE_NAME], "readwrite");
       const store = transaction.objectStore(STORE_NAME);
@@ -56,15 +57,22 @@ class IndexedDbCache {
       };
 
       const request = store.put(entry);
-      request.onsuccess = () => resolve();
-      request.addEventListener("error", () => reject(request.error));
+      request.onsuccess = () => {
+        resolve();
+      };
+      request.addEventListener("error", () => {
+        reject(request.error ?? new Error("IndexedDB set error"));
+      });
     });
   }
 
   async get(id: string, maxAgeMs: number): Promise<string | null> {
     await this.init();
     return new Promise((resolve, reject) => {
-      if (!this.db) return reject("DB not initialized");
+      if (!this.db) {
+        reject(new Error("DB not initialized"));
+        return;
+      }
 
       const transaction = this.db.transaction([STORE_NAME], "readonly");
       const store = transaction.objectStore(STORE_NAME);
@@ -85,7 +93,9 @@ class IndexedDbCache {
         }
       };
 
-      request.addEventListener("error", () => reject(request.error));
+      request.addEventListener("error", () => {
+        reject(request.error ?? new Error("IndexedDB get error"));
+      });
     });
   }
 }

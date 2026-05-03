@@ -61,6 +61,7 @@ You can manage the entire project (backend and frontend) from the root directory
 | `npm run build` | Builds the WASM engine, the backend binary, and the React production bundle. |
 | `npm run lint` | Runs `cargo clippy` and `eslint` for both codebases. |
 | `npm run fmt` | Formats both Rust and React code according to project standards. |
+| `npm run test` | Runs tests for both the Rust backend and React frontend. |
 
 ---
 

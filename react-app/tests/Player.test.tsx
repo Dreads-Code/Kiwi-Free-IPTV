@@ -109,9 +109,14 @@ describe("Player – error path coverage", () => {
       render(<Player />);
 
       // Wait for the error state
-      await waitFor(() => expect(screen.getByRole("alert")).toBeDefined(), {
-        timeout: 5000,
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByRole("alert")).toBeDefined();
+        },
+        {
+          timeout: 5000,
+        },
+      );
 
       // Click the Retry button
       const retryButton = screen.getByRole("button", { name: /retry/i });

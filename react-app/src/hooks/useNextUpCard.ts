@@ -31,11 +31,15 @@ export function useNextUpCard(currentProgramme: Programme | null) {
     let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (showTime > now) {
-      showTimeout = setTimeout(() => setShowNextUp(true), showTime - now);
+      showTimeout = setTimeout(() => {
+        setShowNextUp(true);
+      }, showTime - now);
     }
 
     if (endTime > now) {
-      hideTimeout = setTimeout(() => setShowNextUp(false), endTime - now);
+      hideTimeout = setTimeout(() => {
+        setShowNextUp(false);
+      }, endTime - now);
     }
 
     return () => {

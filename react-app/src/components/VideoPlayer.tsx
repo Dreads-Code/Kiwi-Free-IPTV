@@ -107,12 +107,14 @@ const VideoPlayer = ({
     video.addEventListener("play", handleActualPlay);
     video.addEventListener("pause", handleActualPause);
     video.addEventListener("playing", handleActualPlay);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     if (!video.paused) {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         handleActualPlay();
       }, 0);
     }
     return () => {
+      if (timeoutId) clearTimeout(timeoutId);
       video.removeEventListener("play", handleActualPlay);
       video.removeEventListener("pause", handleActualPause);
       video.removeEventListener("playing", handleActualPlay);

@@ -314,7 +314,9 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
       {/* Top Info Bar */}
       <div
         className="pointer-events-auto bg-linear-to-b from-black/60 to-transparent p-4"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
       >
         <h3 className="text-xl font-bold drop-shadow-lg">{channelName}</h3>
         <p className="text-sm text-gray-200 drop-shadow-lg">{programmeTitle}</p>
@@ -323,7 +325,9 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
       {/* Bottom Controls */}
       <div
         className="pointer-events-auto bg-linear-to-t from-black/60 to-transparent p-2 md:p-4"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
       >
         {/* Seek Bar */}
         <div className="group mb-2 w-full">

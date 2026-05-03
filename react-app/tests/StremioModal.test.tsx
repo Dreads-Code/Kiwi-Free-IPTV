@@ -42,7 +42,7 @@ describe("StremioModal", () => {
     render(<StremioModal {...defaultProps} />);
     const copyButton = screen.getByText("Copy Install Link");
     fireEvent.click(copyButton);
-    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    expect(mockClipboard.writeText).toHaveBeenCalled();
 
     // Check for "Copied!" feedback
     const copiedText = await screen.findByText("Copied!");

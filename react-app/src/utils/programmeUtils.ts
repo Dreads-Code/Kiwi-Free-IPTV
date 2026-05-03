@@ -46,8 +46,9 @@ export const findCurrentProgramme = (
   programmes: Programme[] | undefined,
   now: Date = new Date(),
 ): Programme | null => {
+  if (!programmes) return null;
   const index = findCurrentProgrammeIndex(programmes, now);
-  return index === -1 ? null : (programmes as Programme[])[index];
+  return index === -1 ? null : programmes[index];
 };
 
 /**
