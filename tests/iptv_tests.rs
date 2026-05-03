@@ -32,6 +32,7 @@ fn test_categorize_channel() {
     assert_eq!(iptv::categorize_channel("redbull tv", &None), "Sports");
     assert_eq!(iptv::categorize_channel("motogp", &None), "Sports");
     assert_eq!(iptv::categorize_channel("sky open", &None), "Sports");
+    assert_eq!(iptv::categorize_channel("sailgp", &None), "Sports");
 
     // News
     assert_eq!(iptv::categorize_channel("cnn international", &None), "News");
@@ -59,11 +60,28 @@ fn test_categorize_channel() {
         iptv::categorize_channel("wairarapa tv", &None),
         "New Zealand"
     );
+    assert_eq!(
+        iptv::categorize_channel("discovery turbo", &None),
+        "New Zealand"
+    );
+    assert_eq!(iptv::categorize_channel("te reo", &None), "New Zealand");
 
     // International / default
     assert_eq!(
         iptv::categorize_channel("random channel", &None),
         "International"
+    );
+
+    // Edge Cases: Empty and Whitespace
+    assert_eq!(iptv::categorize_channel("", &None), "International");
+    assert_eq!(iptv::categorize_channel("   ", &None), "International");
+
+    // Parameters: Passing Some(HashMap)
+    let mut headers = HashMap::new();
+    headers.insert("User-Agent".to_string(), "TestAgent".to_string());
+    assert_eq!(
+        iptv::categorize_channel("sky sport 1", &Some(headers)),
+        "Sports"
     );
 }
 

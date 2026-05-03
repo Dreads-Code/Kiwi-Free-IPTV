@@ -352,12 +352,20 @@ async fn get_channel_by_id(
     state: &AppState,
     id: &str,
 ) -> Result<Option<ChannelMeta>, Box<dyn std::error::Error>> {
+    // Fast path: check the index cache first
     if let Some(index) = state.channel_index_cache.get(CHANNEL_CACHE_KEY).await {
         return Ok(index.get(id).cloned());
     }
 
-    let channels = fetch_data(state).await?;
-    Ok(channels.iter().find(|channel| channel.id == id).cloned())
+    // Cache miss: fetch data (this populates both channel_cache and channel_index_cache)
+    fetch_data(state).await?;
+
+    // Now that the cache is populated, use the index for O(1) lookup
+    if let Some(index) = state.channel_index_cache.get(CHANNEL_CACHE_KEY).await {
+        return Ok(index.get(id).cloned());
+    }
+
+    Ok(None)
 }
 
 #[cfg(not(target_arch = "wasm32"))]

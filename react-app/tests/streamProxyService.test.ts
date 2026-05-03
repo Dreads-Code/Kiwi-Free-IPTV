@@ -64,30 +64,42 @@ describe("streamProxyService", () => {
     });
 
     // -----------------------------------------------------------------------
-    // streamProxyService.ts:51 – catch block when btoa / JSON.stringify fails
+    // streamProxyService.ts:54 – catch block when URL parsing or encoding fails
     // -----------------------------------------------------------------------
-    it("should fall back to the original URL when encoding throws (line 51)", () => {
+    it("should fall back to the original URL when encoding throws (e.g. invalid URL)", () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {
           /* no-op */
         });
 
-      // Force btoa to throw so the catch block is exercised
-      vi.stubGlobal("btoa", () => {
-        throw new Error("btoa not available");
-      });
+      const invalidUrl = "not-a-valid-url";
+      const result = applyProxyRules(invalidUrl);
 
-      const url = "https://example.com/stream.m3u8";
-      const result = applyProxyRules(url);
-
-      expect(result).toBe(url);
+      expect(result).toBe(invalidUrl);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Failed to encode proxy payload:",
         expect.any(Error),
       );
 
-      vi.unstubAllGlobals();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("should fall back to the original URL when btoa throws (non-latin1 characters)", () => {
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {
+          /* no-op */
+        });
+
+      // Valid URL but contains characters that btoa might struggle with depending on environment
+      // "🚀" is U+1F680, which is definitely outside the 0-255 range.
+      const url = "https://example.com/🚀";
+      const result = applyProxyRules(url);
+
+      expect(result).toBe(url);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+
       consoleErrorSpy.mockRestore();
     });
   });

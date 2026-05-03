@@ -36,6 +36,9 @@ export const applyProxyRules = (
   headers?: Record<string, string>,
 ): string => {
   try {
+    // Ensure the URL is valid before attempting to encode it
+    new URL(url);
+
     const payload: { url: string; headers?: Record<string, string> } = { url };
     if (headers && Object.keys(headers).length > 0) {
       payload.headers = headers;
