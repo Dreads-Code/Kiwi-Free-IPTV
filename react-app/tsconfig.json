@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "tests", "vite.config.js", "eslint.config.js", "vitest.setup.ts"]
 }

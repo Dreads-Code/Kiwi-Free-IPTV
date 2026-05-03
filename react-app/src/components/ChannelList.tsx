@@ -26,93 +26,58 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
   const isProgrammaticScrollActive = useRef(false);
   const scrollEndTimeout = useRef<number | null>(null);
 
-  // Activate whichever card is closest to the horizontal centre of the scroller.
-  // Uses getBoundingClientRect so it works regardless of scroll/positioning context.
-  const activateCenterChannel = useRef(() => {
-    if (isProgrammaticScrollActive.current) return;
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-
-    const scrollerRect = scroller.getBoundingClientRect();
-    const scrollerCenter = scrollerRect.left + scrollerRect.width / 2;
-
-    let closestId: string | null = null;
-    let closestDistance = Number.POSITIVE_INFINITY;
-
-    for (const [id, el] of cardsRef.current) {
-      const cardRect = el.getBoundingClientRect();
-      const cardCenter = cardRect.left + cardRect.width / 2;
-      const distance = Math.abs(cardCenter - scrollerCenter);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestId = id;
-      }
-    }
-
-    if (closestId) {
-      onChannelActivate(closestId);
-    }
-  });
-
-  // Keep the callback ref current without re-registering listeners on every render.
+  // Use refs to keep the IntersectionObserver callback stable while accessing latest props.
+  const activeChannelIdRef = useRef(activeChannelId);
   useEffect(() => {
-    activateCenterChannel.current = () => {
-      if (isProgrammaticScrollActive.current) return;
-      const scroller = scrollerRef.current;
-      if (!scroller) return;
+    activeChannelIdRef.current = activeChannelId;
+  }, [activeChannelId]);
 
-      const scrollerRect = scroller.getBoundingClientRect();
-      const scrollerCenter = scrollerRect.left + scrollerRect.width / 2;
-
-      let closestId: string | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      for (const [id, el] of cardsRef.current) {
-        const cardRect = el.getBoundingClientRect();
-        const cardCenter = cardRect.left + cardRect.width / 2;
-        const distance = Math.abs(cardCenter - scrollerCenter);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestId = id;
-        }
-      }
-
-      if (closestId) {
-        onChannelActivate(closestId);
-      }
-    };
+  const onChannelActivateRef = useRef(onChannelActivate);
+  useEffect(() => {
+    onChannelActivateRef.current = onChannelActivate;
   }, [onChannelActivate]);
 
-  // Attach scroll listeners once. Uses scrollend where available (Chrome/Firefox),
-  // falls back to scroll + debounce for Safari.
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  /**
+   * Initialize IntersectionObserver for center detection.
+   * This replaces the manual scroll listener loop and getBoundingClientRect calls,
+   * which caused layout thrashing and hurt framerate during scrolling.
+   * By using a -50% rootMargin, we create a zero-width intersection line at the horizontal center.
+   */
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
-    const onScrollEnd = () => activateCenterChannel.current();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        // Ignore intersection changes during programmatic scrolls (keyboard navigation)
+        // to prevent competing state updates and feedback loops.
+        if (isProgrammaticScrollActive.current) return;
 
-    let debounceTimer: number;
-    const onScroll = () => {
-      globalThis.clearTimeout(debounceTimer);
-      debounceTimer = globalThis.setTimeout(
-        () => activateCenterChannel.current(),
-        200,
-      ) as unknown as number;
-    };
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const channelId = (entry.target as HTMLElement).dataset.channelId;
+            // Only update if it's a different channel to avoid redundant state updates.
+            if (channelId && channelId !== activeChannelIdRef.current) {
+              onChannelActivateRef.current(channelId);
+            }
+          }
+        }
+      },
+      {
+        root: scroller,
+        rootMargin: "0px -50% 0px -50%",
+        threshold: 0,
+      },
+    );
 
-    if ("onscrollend" in scroller) {
-      scroller.addEventListener("scrollend", onScrollEnd);
-    } else {
-      scroller.addEventListener("scroll", onScroll, { passive: true });
-    }
+    // Initial observation of all cards currently in the map.
+    cardsRef.current.forEach((el) => observerRef.current?.observe(el));
 
     return () => {
-      globalThis.clearTimeout(debounceTimer);
-      if ("onscrollend" in scroller) {
-        scroller.removeEventListener("scrollend", onScrollEnd);
-      } else {
-        scroller.removeEventListener("scroll", onScroll);
-      }
+      observerRef.current?.disconnect();
+      observerRef.current = null;
     };
   }, []);
 
@@ -163,8 +128,15 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
           <DeckChannelCard
             key={channel.id}
             ref={(el) => {
-              if (el) cardsRef.current.set(channel.id, el);
-              else cardsRef.current.delete(channel.id);
+              if (el) {
+                cardsRef.current.set(channel.id, el);
+                // Register with the observer when the card mounts.
+                observerRef.current?.observe(el);
+              } else {
+                const oldEl = cardsRef.current.get(channel.id);
+                if (oldEl) observerRef.current?.unobserve(oldEl);
+                cardsRef.current.delete(channel.id);
+              }
             }}
             channel={channel}
             programmes={epg.get(channel.epg_id)}
