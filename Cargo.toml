@@ -25,7 +25,7 @@ native = ["vercel_runtime", "tokio", "axum", "tower", "tower-http", "moka"]
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 reqwest = { version = "0.13.3", features = ["json", "stream"] }
-quick-xml = { version = "0.39.2", features = ["serialize"] }
+quick-xml = { version = "0.40.1", features = ["serialize"] }
 m3u8-rs = "6.0.0"
 chrono = { version = "0.4.44", features = ["serde"] }
 log = "0.4.29"
