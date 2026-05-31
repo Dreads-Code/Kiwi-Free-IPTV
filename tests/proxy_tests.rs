@@ -118,12 +118,12 @@ fn test_rewrite_m3u8_logic() {
         #EXTINF:10.0,\n\
         segment1.ts\n\
         #EXTINF:10.0,\n\
-        https://cdn.com/seg2.ts\n\
+        https://skyone.co.nz/seg2.ts\n\
         #EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n\
         #EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\"";
 
     let proxy_base = "http://localhost:7000";
-    let original_url = "https://example.com/playlist.m3u8";
+    let original_url = "https://mjh.nz/playlist.m3u8";
 
     let rewritten = proxy::rewrite_m3u8(m3u8_content, proxy_base, original_url, None);
 
@@ -138,22 +138,22 @@ fn test_rewrite_m3u8_logic() {
     let lines: Vec<&str> = rewritten.lines().collect();
 
     // Segment 1 (Relative: segment1.ts)
-    // base.join("segment1.ts") -> "https://example.com/segment1.ts"
-    // example.com is in whitelisted_domains in src/proxy.rs, so it should be DIRECT (not proxied)
-    assert!(rewritten.contains("https://example.com/segment1.ts"));
+    // base.join("segment1.ts") -> "https://mjh.nz/segment1.ts"
+    // mjh.nz is in whitelisted_domains in src/proxy.rs, so it should be DIRECT (not proxied)
+    assert!(rewritten.contains("https://mjh.nz/segment1.ts"));
     assert!(!rewritten.contains("proxy/segment1.ts")); // Should not be proxied due to offload logic
 
-    // Segment 2 (Absolute: https://cdn.com/seg2.ts)
-    // cdn.com is also in whitelisted_domains, so it should be DIRECT
-    assert!(rewritten.contains("https://cdn.com/seg2.ts"));
+    // Segment 2 (Absolute: https://skyone.co.nz/seg2.ts)
+    // skyone.co.nz is also in whitelisted_domains, so it should be DIRECT
+    assert!(rewritten.contains("https://skyone.co.nz/seg2.ts"));
 
-    // URI attribute in #EXT-X-KEY (key.bin -> https://example.com/key.bin)
-    // example.com is whitelisted and key.bin is not m3u8, so it's offloaded as a direct URL
+    // URI attribute in #EXT-X-KEY (key.bin -> https://mjh.nz/key.bin)
+    // mjh.nz is whitelisted and key.bin is not m3u8, so it's offloaded as a direct URL
     let key_line = lines
         .iter()
         .find(|&&l| l.contains("EXT-X-KEY"))
         .expect("Should find EXT-X-KEY line");
-    assert!(key_line.contains("URI=\"https://example.com/key.bin\""));
+    assert!(key_line.contains("URI=\"https://mjh.nz/key.bin\""));
 }
 
 #[test]
@@ -192,8 +192,8 @@ fn test_get_base_url() {
 
 #[test]
 fn test_is_safe_url_allows_exact_and_subdomain_whitelist_matches() {
-    assert!(proxy::is_safe_url("https://example.com/playlist.m3u8"));
-    assert!(proxy::is_safe_url("https://sub.example.com/playlist.m3u8"));
+    assert!(proxy::is_safe_url("https://mjh.nz/playlist.m3u8"));
+    assert!(proxy::is_safe_url("https://sub.mjh.nz/playlist.m3u8"));
 }
 
 #[test]
@@ -417,12 +417,12 @@ fn test_rewrite_url() {
     use iptv_nz_addon_rust::proxy::{APPLE_UA, rewrite_url};
     use url::Url;
 
-    let base = Url::parse("https://example.com/stream/").unwrap();
+    let base = Url::parse("https://mjh.nz/stream/").unwrap();
     let proxy_base = "http://127.0.0.1:7000";
 
-    // example.com is whitelisted, so it should return DIRECT for .ts segments
+    // mjh.nz is whitelisted, so it should return DIRECT for .ts segments
     let result = proxy::rewrite_url("segment_1.ts", &base, proxy_base, None);
-    assert_eq!(result, "https://example.com/stream/segment_1.ts");
+    assert_eq!(result, "https://mjh.nz/stream/segment_1.ts");
 
     // Other non-whitelisted domains
     let other_base = url::Url::parse("https://random.com/stream/").unwrap();
@@ -446,13 +446,13 @@ fn test_rewrite_url() {
     // Test that default UA IS removed
     let apple_headers = format!(r#"{{"User-Agent":"{}"}}"#, APPLE_UA);
     let result = rewrite_url(
-        "https://apple.com/video.ts",
+        "https://shinetv.co.nz/video.ts",
         &base,
         proxy_base,
         Some(&apple_headers),
     );
     let data = decode_proxy_url(&result, proxy_base);
-    assert_eq!(data.url, "https://apple.com/video.ts");
+    assert_eq!(data.url, "https://shinetv.co.nz/video.ts");
     assert!(data.headers.is_none());
 }
 

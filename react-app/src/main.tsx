@@ -1,11 +1,30 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import App from "./App.tsx";
+import App from "./App";
 
 import init, { init_panic_hook } from "./wasm/iptv_nz_addon_rust.js";
 
+// Global chunk loading error handler to auto-reload the page on updates
+globalThis.addEventListener(
+  "error",
+  (e) => {
+    const isChunkError =
+      e.message &&
+      (e.message.includes("Failed to fetch dynamically imported module") ||
+        e.message.includes("Importing a type") ||
+        e.message.includes("chunk load"));
+    if (isChunkError) {
+      globalThis.location.reload();
+    }
+  },
+  true,
+);
+
 const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("Failed to find root element");
+}
 const root = createRoot(rootElement);
 
 // Initialize the Rust WASM engine

@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -18,6 +17,10 @@ export default defineConfig({
       ],
       devOptions: {
         enabled: true,
+      },
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
       },
       manifest: {
         name: "KiwiFreeTV",

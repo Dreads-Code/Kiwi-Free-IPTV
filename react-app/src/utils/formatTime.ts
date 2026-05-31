@@ -14,8 +14,10 @@ export const formatTime = (timeInSeconds: number): string => {
   const minutes = Math.floor((timeInSeconds % 3600) / 60);
   const seconds = Math.floor(timeInSeconds % 60);
 
-  if (hours > 0) {
-    return `${hours.toString()}:${format(minutes)}:${format(seconds)}`;
-  }
-  return `${format(minutes)}:${format(seconds)}`;
+  const segments =
+    hours > 0
+      ? [hours.toString(), format(minutes), format(seconds)]
+      : [format(minutes), format(seconds)];
+
+  return segments.join(":");
 };

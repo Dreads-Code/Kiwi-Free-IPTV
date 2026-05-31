@@ -11,8 +11,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = build_router();
 
-    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let addr = format!("0.0.0.0:{}", port);
+    let port: u16 = match env::var("PORT") {
+        Ok(val) => val.parse().map_err(|e| {
+            format!(
+                "Failed to parse PORT environment variable '{}' as u16: {}",
+                val, e
+            )
+        })?,
+        Err(_) => 3000,
+    };
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
 
     info!("Starting local development server on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;

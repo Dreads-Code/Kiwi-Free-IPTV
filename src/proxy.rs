@@ -132,12 +132,7 @@ pub fn is_safe_url(url_str: &str) -> bool {
             "kordia.net.nz",
             "hopto.me",
             "tvmaze.com",
-            // Test domains
-            "example.com",
-            "apple.com",
-            "cdn.com",
-            "other.com",
-            "referrer.com",
+            "e-cast.co.nz",
         ];
 
         if is_whitelisted_host(host, &whitelisted_domains) {
@@ -425,15 +420,20 @@ pub async fn do_proxy(
         if is_mjh {
             req_builder = req_builder.header("User-Agent", BROWSER_UA);
         } else {
-            let ua = payload_headers
+            let mut ua = payload_headers
                 .get("user-agent")
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or(APPLE_UA);
+            if current_url.contains("e-cast.co.nz") {
+                ua = BROWSER_UA;
+            }
             let ua_val =
                 HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(APPLE_UA));
             req_builder = req_builder.header("User-Agent", ua_val);
 
-            if let Ok(ip_val) = HeaderValue::from_str(&user_ip) {
+            if !current_url.contains("e-cast.co.nz")
+                && let Ok(ip_val) = HeaderValue::from_str(&user_ip)
+            {
                 req_builder = req_builder.header("X-Forwarded-For", ip_val);
             }
 
@@ -441,7 +441,7 @@ pub async fn do_proxy(
                 req_builder = req_builder.header("Referer", "https://shinetv.co.nz/");
             } else if current_url.contains("fullscreen.nz") {
                 req_builder = req_builder.header("Referer", "https://www.threenow.co.nz/");
-            } else if current_url.contains("tvnz.co.nz") {
+            } else if current_url.contains("tvnz.co.nz") || current_url.contains("e-cast.co.nz") {
                 req_builder = req_builder.header("Referer", "https://www.tvnz.co.nz/");
             }
         }
@@ -699,7 +699,8 @@ pub fn rewrite_url(
 
     // Bandwidth Optimization: If it's a safe URL/CDN and NO custom headers are needed,
     // return the direct URL to offload transfer from Vercel to the destination CDN.
-    if !has_custom_headers && is_safe_url(&resolved_url) {
+    // Only offload HTTPS URLs to prevent mixed-content blocks when running on an HTTPS player.
+    if !has_custom_headers && is_safe_url(&resolved_url) && resolved_url.starts_with("https://") {
         let path_no_query = resolved_url.split('?').next().unwrap_or(&resolved_url);
         // We offload EVERYTHING except playlists (.m3u8).
         // This covers .ts, .m4s, .aac, and even extensionless segments (like Al Jazeera).

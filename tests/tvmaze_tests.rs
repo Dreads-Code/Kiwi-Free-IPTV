@@ -16,16 +16,46 @@ fn test_clean_title() {
 
 #[test]
 fn test_process_icon_url() {
+    // Empty input -> None
+    assert_eq!(process_epg_icon_url(""), None);
+
+    // HTTP -> HTTPS upgrade
     assert_eq!(
         process_epg_icon_url("http://example.com/image.jpg"),
         Some("https://example.com/image.jpg".to_string())
     );
+
+    // CDN [width] and [height] placeholders (landscape)
     assert_eq!(
-        process_epg_icon_url("https://cdn.fullscreen.nz/[width]x[height]/Spotlight/show.jpg"),
-        Some("https://cdn.fullscreen.nz/600x338/Spotlight/show.jpg".to_string())
+        process_epg_icon_url("https://cdn.fullscreen.nz/Spotlight/[width]/[height]/image.jpg"),
+        Some("https://cdn.fullscreen.nz/Spotlight/600/338/image.jpg".to_string())
     );
+
+    // CDN [width] and [height] placeholders (portrait)
+    assert_eq!(
+        process_epg_icon_url("https://cdn.fullscreen.nz/SomeOther/[width]/[height]/image.jpg"),
+        Some("https://cdn.fullscreen.nz/SomeOther/300/450/image.jpg".to_string())
+    );
+
+    // data: scheme rejection
+    assert_eq!(
+        process_epg_icon_url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA"),
+        None
+    );
+
+    // Valid HTTPS URL passthrough
+    assert_eq!(
+        process_epg_icon_url("https://example.com/logo.png"),
+        Some("https://example.com/logo.png".to_string())
+    );
+
+    // Invalid formats
     assert_eq!(process_epg_icon_url("not-a-url"), None);
-    assert_eq!(process_epg_icon_url("https://example.com/page"), None);
+    // Invalid path and query without allowed format -> None
+    assert_eq!(
+        process_epg_icon_url("https://example.com/page?param=1"),
+        None
+    );
 }
 
 #[tokio::test]

@@ -374,76 +374,63 @@ async fn get_channel_by_id(
 pub async fn fetch_data(
     state: &AppState,
 ) -> Result<Arc<Vec<ChannelMeta>>, Box<dyn std::error::Error>> {
-    // Check if fully processed data is already cached
-    if let Some(data) = state.channel_cache.get(CHANNEL_CACHE_KEY).await {
-        if state
-            .channel_index_cache
-            .get(CHANNEL_CACHE_KEY)
-            .await
-            .is_none()
-        {
-            state
-                .channel_index_cache
-                .insert(
-                    CHANNEL_CACHE_KEY.to_string(),
-                    build_channel_index(data.as_ref()),
-                )
-                .await;
-        }
-        return Ok(data);
-    }
-
-    // Fetch or use cached M3U8
-    let m3u8_text = if let Some(cached) = state.stream_cache.get("m3u8").await {
-        cached
-    } else {
-        info!("Refreshing M3U8 data...");
-        let text = make_request(state.client.as_ref(), &state.m3u8_url, 3).await?;
-        state
-            .stream_cache
-            .insert("m3u8".to_string(), text.clone())
-            .await;
-        text
-    };
-
-    // Fetch or use cached EPG
-    let epg_text = if let Some(cached) = state.epg_cache.get("epg_text").await {
-        cached
-    } else {
-        info!("Refreshing EPG data...");
-        let text = make_request(state.client.as_ref(), &state.epg_url, 3).await?;
-        state
-            .epg_cache
-            .insert("epg_text".to_string(), text.clone())
-            .await;
-        text
-    };
-
-    let channels = Arc::new(parse_channels(&m3u8_text, &epg_text));
-
-    // Populate caches
-    state
+    let channels = state
         .channel_cache
-        .insert(CHANNEL_CACHE_KEY.to_string(), channels.clone())
-        .await;
+        .try_get_with(CHANNEL_CACHE_KEY.to_string(), async {
+            // Fetch or use cached M3U8
+            let m3u8_text = if let Some(cached) = state.stream_cache.get("m3u8").await {
+                cached
+            } else {
+                info!("Refreshing M3U8 data...");
+                let text = make_request(state.client.as_ref(), &state.m3u8_url, 3)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                state
+                    .stream_cache
+                    .insert("m3u8".to_string(), text.clone())
+                    .await;
+                text
+            };
 
+            // Fetch or use cached EPG
+            let epg_text = if let Some(cached) = state.epg_cache.get("epg_text").await {
+                cached
+            } else {
+                info!("Refreshing EPG data...");
+                let text = make_request(state.client.as_ref(), &state.epg_url, 3)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                state
+                    .epg_cache
+                    .insert("epg_text".to_string(), text.clone())
+                    .await;
+                text
+            };
+
+            let channels_parsed =
+                tokio::task::spawn_blocking(move || parse_channels(&m3u8_text, &epg_text))
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
+            let channels = Arc::new(channels_parsed);
+
+            info!("Cached {} processed channels.", channels.len());
+
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(channels)
+        })
+        .await
+        .map_err(|e| {
+            Box::new(std::io::Error::other(e.to_string())) as Box<dyn std::error::Error>
+        })?;
+
+    // Avoid TOCTOU: use try_get_with to build and cache the index coalescently
     state
         .channel_index_cache
-        .insert(
-            CHANNEL_CACHE_KEY.to_string(),
-            build_channel_index(channels.as_ref()),
-        )
-        .await;
-
-    // Also keep the JSON cache for compatibility/other uses if needed
-    if let Ok(json_str) = serde_json::to_string(&channels) {
-        state
-            .stream_cache
-            .insert(CHANNEL_CACHE_KEY.to_string(), json_str)
-            .await;
-    }
-
-    info!("Cached {} processed channels.", channels.len());
+        .try_get_with(CHANNEL_CACHE_KEY.to_string(), async {
+            Ok::<_, std::convert::Infallible>(build_channel_index(channels.as_ref()))
+        })
+        .await
+        .ok();
 
     Ok(channels)
 }
@@ -453,7 +440,7 @@ pub async fn fetch_data(
 /// Enriches metadata with artwork from TVMaze if applicable.
 pub async fn format_meta(
     state: AppState,
-    channel: ChannelMeta,
+    channel: &ChannelMeta,
     now_str: String,
     is_catalog: bool,
 ) -> serde_json::Value {
@@ -556,15 +543,22 @@ pub async fn format_meta(
 pub async fn catalog(state: &AppState) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let channels = fetch_data(state).await?;
     let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
-    let res = stream::iter(
-        channels
-            .iter()
-            .cloned()
-            .map(|channel| format_meta(state.clone(), channel, now_str.clone(), true)),
-    )
-    .buffered(CATALOG_META_CONCURRENCY)
-    .collect::<Vec<_>>()
-    .await;
+    let res = {
+        let state = state.clone();
+        stream::iter(0..channels.len())
+            .map(move |idx| {
+                let channels = channels.clone();
+                let state = state.clone();
+                let now_str = now_str.clone();
+                async move {
+                    let channel = &channels[idx];
+                    format_meta(state, channel, now_str, true).await
+                }
+            })
+            .buffered(CATALOG_META_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await
+    };
     Ok(serde_json::Value::Array(res))
 }
 
@@ -582,7 +576,7 @@ pub async fn meta(
     let now_str = chrono::Utc::now().format("%Y%m%d%H%M%S +0000").to_string();
 
     Ok(Some(
-        format_meta(state.clone(), channel.clone(), now_str, false).await,
+        format_meta(state.clone(), &channel, now_str, false).await,
     ))
 }
 

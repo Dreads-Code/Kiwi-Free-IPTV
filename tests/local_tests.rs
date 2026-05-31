@@ -5,5 +5,6 @@
 #[test]
 fn test_local_compilation_smoke() {
     // This just ensures the test suite reaches this point.
-    assert!(true);
+    let smoke = true;
+    assert!(smoke);
 }

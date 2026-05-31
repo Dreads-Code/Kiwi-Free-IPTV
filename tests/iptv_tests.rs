@@ -104,7 +104,7 @@ async fn test_format_meta_catalog() {
         programmes: Arc::new(vec![]),
     };
 
-    let json = iptv::format_meta(state, meta, "20260311200000 +0000".to_string(), true).await;
+    let json = iptv::format_meta(state, &meta, "20260311200000 +0000".to_string(), true).await;
     assert_eq!(json["id"], serde_json::json!("test-id"));
     assert_eq!(json["name"], serde_json::json!("Test TV"));
     assert_eq!(json["poster"], serde_json::json!("http://poster"));
@@ -147,7 +147,7 @@ async fn test_format_meta_detail() {
         }]),
     };
 
-    let json = iptv::format_meta(state, meta, "20260311110000 +0000".to_string(), false).await;
+    let json = iptv::format_meta(state, &meta, "20260311110000 +0000".to_string(), false).await;
 
     assert_eq!(json["id"], serde_json::json!("test-id"));
     // name gets overwritten by currently playing show
