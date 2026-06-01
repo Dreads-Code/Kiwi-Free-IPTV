@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { X } from "lucide-react";
+import { X, AlertTriangle, Tv, RefreshCw } from "lucide-react";
 
 import { Channel, EpgData } from "../types";
 import CustomVideoControls from "./CustomVideoControls";
@@ -43,6 +43,7 @@ const VideoPlayer = ({
     () => typeof document !== "undefined" && document.pictureInPictureEnabled,
   );
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +56,45 @@ const VideoPlayer = ({
       cancelled = true;
     };
   }, [streamUrl, channel.headers]);
+
+  const isTvnz2 = useMemo(() => {
+    return (
+      channel.name.toLowerCase().includes("tvnz 2") ||
+      channel.name.toLowerCase().replaceAll(" ", "") === "tvnz2"
+    );
+  }, [channel.name]);
+
+  // Loading and buffering timeout effect to explain errors gracefully
+  useEffect(() => {
+    if (isPlaying) {
+      return;
+    }
+
+    if (isTvnz2) {
+      // For TVNZ 2, we know it's a permanent DRM migration, so show message after a brief loading state
+      const timer = setTimeout(() => {
+        setLoadError(
+          "TVNZ 2 has transitioned to encrypted DRM (Widevine) streams. Unencrypted public feeds are currently unavailable. We are actively monitoring for new public mirror streams.",
+        );
+        setIsBuffering(false);
+      }, 5000);
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+
+    // General timeout for other channels
+    const timer = setTimeout(() => {
+      setLoadError(
+        "This stream is taking unusually long to load. The source server might be temporarily offline, restricted in your region, or experiencing network CORS blocks.",
+      );
+      setIsBuffering(false);
+    }, 12_000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isPlaying, isBuffering, resolvedUrl, isTvnz2]);
 
   const {
     subtitleTracks,
@@ -71,6 +111,34 @@ const VideoPlayer = ({
     resolvedUrl,
     headers: channel.headers,
   });
+
+  // Combine local load timeouts and HlsPlayer errors into a unified user-friendly view
+  const activeError = useMemo(() => {
+    if (loadError) return loadError;
+    if (hlsError) {
+      if (hlsError.toLowerCase().includes("proxy connection failed")) {
+        return "Connection to the secure proxy failed. The stream link might be offline, restricted in your region, or the upstream CDN is blocking requests.";
+      }
+      if (
+        hlsError.toLowerCase().includes("stream unavailable in your region")
+      ) {
+        return "This stream is geoblocked or restricted in your region. The source CDN requires a local New Zealand IP address.";
+      }
+      return hlsError;
+    }
+    return null;
+  }, [loadError, hlsError]);
+
+  const handleRetry = useCallback(() => {
+    setLoadError(null);
+    clearHlsError();
+    setIsBuffering(true);
+    const currentResolved = resolvedUrl;
+    setResolvedUrl(null);
+    setTimeout(() => {
+      setResolvedUrl(currentResolved);
+    }, 150);
+  }, [clearHlsError, resolvedUrl]);
 
   const { isControlsVisible, showControls, cancelAutoHide } =
     useControlsVisibility(isPlaying);
@@ -98,6 +166,7 @@ const VideoPlayer = ({
     if (!video) return;
     const handleActualPlay = () => {
       setIsPlaying(true);
+      setLoadError(null);
       showControls();
     };
     const handleActualPause = () => {
@@ -262,10 +331,53 @@ const VideoPlayer = ({
         }}
       />
 
-      {(!resolvedUrl || isBuffering) && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/20 border-t-white/80"></div>
+      {activeError ? (
+        <div className="animate-fade-in absolute inset-0 z-30 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+          <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl">
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-red-500/20 bg-red-500/10 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+              {isTvnz2 ? (
+                <Tv size={28} className="animate-pulse" />
+              ) : (
+                <AlertTriangle size={28} className="animate-pulse" />
+              )}
+            </div>
+            <h3 className="mb-2 text-xl font-bold tracking-wide text-white">
+              {isTvnz2 ? "DRM Encrypted Channel" : "Playback Error"}
+            </h3>
+            <p className="mb-6 text-sm leading-relaxed text-white/70">
+              {activeError}
+            </p>
+            <div className="flex w-full gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="flex-1 cursor-pointer rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95"
+              >
+                Close Channel
+              </button>
+              {!isTvnz2 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRetry();
+                  }}
+                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-black shadow-lg shadow-white/5 transition-all hover:bg-white/90 active:scale-95"
+                >
+                  <RefreshCw size={14} />
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+      ) : (
+        (!resolvedUrl || isBuffering) && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/20 border-t-white/80"></div>
+          </div>
+        )
       )}
 
       <CustomVideoControls
