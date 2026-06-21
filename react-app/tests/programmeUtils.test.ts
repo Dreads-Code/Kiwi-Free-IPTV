@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findCurrentProgrammeIndex } from "../src/utils/programmeUtils";
+import { findCurrentProgrammeIndex, findFirstProgrammeStartingAfter } from "../src/utils/programmeUtils";
 import type { Programme } from "../src/types";
 
 const HOUR = 3_600_000;
@@ -18,7 +18,7 @@ function makeProg(startMs: number, durationMs: number, title = "Test"): Programm
 
 describe("findCurrentProgrammeIndex", () => {
   it("returns -1 for undefined programmes", () => {
-    expect(findCurrentProgrammeIndex()).toBe(-1);
+    expect(findCurrentProgrammeIndex(undefined)).toBe(-1);
   });
 
   it("returns -1 for an empty array", () => {
@@ -100,5 +100,47 @@ describe("findCurrentProgrammeIndex", () => {
     const progs = [makeProg(realNow - 30_000, 60_000)];
     // Should find index 0 since the programme is airing right now
     expect(findCurrentProgrammeIndex(progs)).toBe(0);
+  });
+});
+
+describe("findFirstProgrammeStartingAfter", () => {
+  it("returns -1 for an empty array", () => {
+    expect(findFirstProgrammeStartingAfter([], 1000)).toBe(-1);
+  });
+
+  it("returns -1 when all programmes start before the given time", () => {
+    const progs = [
+      makeProg(100, 50),
+      makeProg(200, 50),
+      makeProg(300, 50),
+    ];
+    expect(findFirstProgrammeStartingAfter(progs, 350)).toBe(-1);
+  });
+
+  it("returns 0 when all programmes start after or at the given time", () => {
+    const progs = [
+      makeProg(100, 50),
+      makeProg(200, 50),
+      makeProg(300, 50),
+    ];
+    expect(findFirstProgrammeStartingAfter(progs, 50)).toBe(0);
+  });
+
+  it("finds the exact matching start time", () => {
+    const progs = [
+      makeProg(100, 50),
+      makeProg(200, 50),
+      makeProg(300, 50),
+    ];
+    expect(findFirstProgrammeStartingAfter(progs, 200)).toBe(1);
+  });
+
+  it("finds the first programme starting after the given time in the middle of the list", () => {
+    const progs = [
+      makeProg(100, 50),
+      makeProg(200, 50),
+      makeProg(300, 50),
+    ];
+    expect(findFirstProgrammeStartingAfter(progs, 150)).toBe(1);
   });
 });
