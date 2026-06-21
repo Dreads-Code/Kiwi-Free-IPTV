@@ -3,10 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useNextUpCard } from "../src/hooks/useNextUpCard";
 import type { Programme } from "../src/types";
 
-const createMockProgramme = (
-  minutesFromNow: number,
-  durationMinutes: number,
-): Programme => {
+const createMockProgramme = (minutesFromNow: number, durationMinutes: number): Programme => {
   const now = Date.now();
   const start = new Date(now + (minutesFromNow - durationMinutes) * 60_000);
   const stop = new Date(now + minutesFromNow * 60_000);

@@ -1,7 +1,10 @@
 [package]
 name = "iptv-nz-addon-rust"
-version = "1.6.0"
+version = "1.7.0"
 edition = "2024"
+description = "A high-performance, unified solution for streaming free-to-air New Zealand TV"
+repository = "https://github.com/Dreads-Code/Kiwi-Free-IPTV"
+license = "MIT"
 
 [lib]
 path = "src/lib.rs"

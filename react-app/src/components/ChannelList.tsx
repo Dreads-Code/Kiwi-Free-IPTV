@@ -24,9 +24,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const isProgrammaticScrollActiveRef = useRef(false);
-  const scrollEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const scrollEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Use refs to keep the IntersectionObserver callback stable while accessing latest props.
   const activeChannelIdRef = useRef(activeChannelId);
@@ -116,9 +114,7 @@ const ChannelDeck: React.FC<ChannelDeckProps> = ({
       className="relative h-[min(700px,80svh)] w-full py-4"
       role="listbox"
       aria-label="Channel selection deck. Use left and right arrow keys to navigate channels, and press Enter to view details."
-      aria-activedescendant={
-        activeChannelId ? `channel-card-${activeChannelId}` : undefined
-      }
+      aria-activedescendant={activeChannelId ? `channel-card-${activeChannelId}` : undefined}
       tabIndex={0}
     >
       <div

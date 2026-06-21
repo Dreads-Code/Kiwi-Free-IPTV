@@ -1,6 +1,6 @@
 {
   "name": "iptv-nz-stremio-root",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "scripts": {
     "build": "wasm-pack build --target web --out-dir react-app/src/wasm -- --no-default-features && cargo build --release && npm install --prefix react-app && npm run build --prefix react-app",
@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

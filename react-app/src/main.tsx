@@ -52,12 +52,9 @@ init()
           fontFamily: "Inter, sans-serif",
         }}
       >
-        <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
-          Engine Initialization Failed
-        </h1>
+        <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>Engine Initialization Failed</h1>
         <p style={{ opacity: 0.8 }}>
-          The application could not start because the core engine failed to
-          load.
+          The application could not start because the core engine failed to load.
         </p>
         <pre
           style={{

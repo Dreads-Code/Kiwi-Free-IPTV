@@ -97,12 +97,7 @@ describe("ChannelCard", () => {
 
   it('should handle missing programmes gracefully (fallback to "Live")', () => {
     render(
-      <DeckChannelCard
-        channel={mockChannel}
-        programmes={[]}
-        onSelect={vi.fn()}
-        isActive={false}
-      />,
+      <DeckChannelCard channel={mockChannel} programmes={[]} onSelect={vi.fn()} isActive={false} />,
     );
 
     expect(screen.getByText("Live")).toBeDefined();

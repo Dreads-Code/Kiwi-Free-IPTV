@@ -1,10 +1,4 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { X, AlertTriangle, Tv, RefreshCw } from "lucide-react";
 
 import { Channel, EpgData } from "../types";
@@ -24,12 +18,7 @@ interface VideoPlayerProps {
   epg: EpgData;
 }
 
-const VideoPlayer = ({
-  streamUrl,
-  onClose,
-  channel,
-  epg,
-}: VideoPlayerProps) => {
+const VideoPlayer = ({ streamUrl, onClose, channel, epg }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -119,9 +108,7 @@ const VideoPlayer = ({
       if (hlsError.toLowerCase().includes("proxy connection failed")) {
         return "Connection to the secure proxy failed. The stream link might be offline, restricted in your region, or the upstream CDN is blocking requests.";
       }
-      if (
-        hlsError.toLowerCase().includes("stream unavailable in your region")
-      ) {
+      if (hlsError.toLowerCase().includes("stream unavailable in your region")) {
         return "This stream is geoblocked or restricted in your region. The source CDN requires a local New Zealand IP address.";
       }
       return hlsError;
@@ -140,11 +127,12 @@ const VideoPlayer = ({
     }, 150);
   }, [clearHlsError, resolvedUrl]);
 
-  const { isControlsVisible, showControls, cancelAutoHide } =
-    useControlsVisibility(isPlaying);
+  const { isControlsVisible, showControls, cancelAutoHide } = useControlsVisibility(isPlaying);
 
-  const { isFullscreen, handleFullscreenToggle, isCastAvailable, handleCast } =
-    useFullscreen(playerContainerRef, videoRef);
+  const { isFullscreen, handleFullscreenToggle, isCastAvailable, handleCast } = useFullscreen(
+    playerContainerRef,
+    videoRef,
+  );
 
   const { currentProgramme, nextProgramme } = useMemo(() => {
     const programmes = epg.get(channel.epg_id);
@@ -344,9 +332,7 @@ const VideoPlayer = ({
             <h3 className="mb-2 text-xl font-bold tracking-wide text-white">
               {isTvnz2 ? "DRM Encrypted Channel" : "Playback Error"}
             </h3>
-            <p className="mb-6 text-sm leading-relaxed text-white/70">
-              {activeError}
-            </p>
+            <p className="mb-6 text-sm leading-relaxed text-white/70">{activeError}</p>
             <div className="flex w-full gap-3">
               <button
                 onClick={(e) => {

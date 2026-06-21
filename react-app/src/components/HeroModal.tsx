@@ -61,10 +61,7 @@ const findNextProgrammes = (
   if (!programmes) return [];
 
   // Use binary search to find the programme at this time
-  const index = findFirstVisibleProgrammeIndex(
-    programmes,
-    currentProgramme.startMs,
-  );
+  const index = findFirstVisibleProgrammeIndex(programmes, currentProgramme.startMs);
 
   if (index === -1) return [];
 
@@ -127,9 +124,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
       if (!categories || categories.length === 0) return null;
       // Prefer a more specific category over a generic one like "Lifestyle"
       return (
-        categories.find(
-          (c) => !["lifestyle", "other"].includes(c.toLowerCase()),
-        ) ?? categories[0]
+        categories.find((c) => !["lifestyle", "other"].includes(c.toLowerCase())) ?? categories[0]
       );
     }, [programme?.categories]);
 
@@ -163,9 +158,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
       if (e.key === "Tab") {
         e.preventDefault();
         const activeElement = document.activeElement;
-        const currentIndex = focusableElements.indexOf(
-          activeElement as HTMLElement,
-        );
+        const currentIndex = focusableElements.indexOf(activeElement as HTMLElement);
         const nextIndex =
           (currentIndex + (e.shiftKey ? -1 : 1) + focusableElements.length) %
           focusableElements.length;
@@ -173,20 +166,11 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
         return;
       }
 
-      if (
-        ["ArrowLeft", "ArrowRight"].includes(e.key) &&
-        (context === "live" || isLive)
-      ) {
+      if (["ArrowLeft", "ArrowRight"].includes(e.key) && (context === "live" || isLive)) {
         const activeElement = document.activeElement;
-        if (
-          activeElement === watchNowButtonRef.current &&
-          e.key === "ArrowRight"
-        ) {
+        if (activeElement === watchNowButtonRef.current && e.key === "ArrowRight") {
           scheduleButtonRef.current?.focus();
-        } else if (
-          activeElement === scheduleButtonRef.current &&
-          e.key === "ArrowLeft"
-        ) {
+        } else if (activeElement === scheduleButtonRef.current && e.key === "ArrowLeft") {
           watchNowButtonRef.current?.focus();
         }
         e.preventDefault();
@@ -194,10 +178,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
         return;
       }
 
-      if (
-        ["Enter", " "].includes(e.key) &&
-        document.activeElement !== modalRef.current
-      ) {
+      if (["Enter", " "].includes(e.key) && document.activeElement !== modalRef.current) {
         e.stopPropagation();
       }
     };
@@ -248,9 +229,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
 
           {!channel || !programme ? (
             <div className="py-10 text-center">
-              <p className="text-lg text-gray-400">
-                Program information not available.
-              </p>
+              <p className="text-lg text-gray-400">Program information not available.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -264,14 +243,8 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
               <div className="flex flex-col md:col-span-2">
                 <div className="grow">
                   <div className="mb-2 flex items-end gap-3">
-                    <img
-                      src={channel.logo}
-                      alt=""
-                      className="h-10 max-h-10 object-contain"
-                    />
-                    <p className="pb-1 text-lg font-medium text-gray-400">
-                      {channel.name}
-                    </p>
+                    <img src={channel.logo} alt="" className="h-10 max-h-10 object-contain" />
+                    <p className="pb-1 text-lg font-medium text-gray-400">{channel.name}</p>
                   </div>
 
                   <h3
@@ -282,18 +255,14 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
                   </h3>
 
                   <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                    {programme.rating && (
-                      <RatingBadge rating={programme.rating} />
-                    )}
+                    {programme.rating && <RatingBadge rating={programme.rating} />}
                     {programme.isNew && (
                       <div className="rounded-md bg-(--md-sys-color-primary) px-2 py-1 text-xs font-bold text-(--md-sys-color-on-primary)">
                         NEW
                       </div>
                     )}
                     {programme.episodeNum && (
-                      <span className="truncate text-sm text-gray-300">
-                        {programme.episodeNum}
-                      </span>
+                      <span className="truncate text-sm text-gray-300">{programme.episodeNum}</span>
                     )}
                   </div>
 
@@ -303,25 +272,18 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
 
                   {/* Info Tags Bar */}
                   <div className="my-4 flex flex-wrap items-center gap-2">
-                    {programme.starRating &&
-                      programme.starRating !== "0/10" && (
-                        <InfoTag
-                          icon={
-                            <span className="material-symbols-outlined text-amber-400">
-                              grade
-                            </span>
-                          }
-                          label={programme.starRating}
-                          title="Star Rating"
-                        />
-                      )}
-                    {displayCategory && (
+                    {programme.starRating && programme.starRating !== "0/10" && (
                       <InfoTag
                         icon={
-                          <span className="material-symbols-outlined">
-                            movie
-                          </span>
+                          <span className="material-symbols-outlined text-amber-400">grade</span>
                         }
+                        label={programme.starRating}
+                        title="Star Rating"
+                      />
+                    )}
+                    {displayCategory && (
+                      <InfoTag
+                        icon={<span className="material-symbols-outlined">movie</span>}
                         label={displayCategory}
                         title="Category"
                       />
@@ -335,34 +297,21 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
                     )}
                     {programme.videoQuality && (
                       <InfoTag
-                        icon={
-                          <span className="material-symbols-outlined">hd</span>
-                        }
+                        icon={<span className="material-symbols-outlined">hd</span>}
                         label={programme.videoQuality}
                         title="Video Quality"
                       />
                     )}
                     {programme.audio && (
                       <InfoTag
-                        icon={
-                          <span className="material-symbols-outlined">
-                            surround_sound
-                          </span>
-                        }
-                        label={
-                          programme.audio.charAt(0).toUpperCase() +
-                          programme.audio.slice(1)
-                        }
+                        icon={<span className="material-symbols-outlined">surround_sound</span>}
+                        label={programme.audio.charAt(0).toUpperCase() + programme.audio.slice(1)}
                         title="Audio Format"
                       />
                     )}
                     {programme.subtitles && (
                       <InfoTag
-                        icon={
-                          <span className="material-symbols-outlined">
-                            subtitles
-                          </span>
-                        }
+                        icon={<span className="material-symbols-outlined">subtitles</span>}
                         label={programme.subtitles}
                         title="Subtitles Available"
                       />
@@ -387,8 +336,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
                         Airs At
                       </p>
                       <p className="font-mono text-lg text-white">
-                        {formatTime(programme.start)} -{" "}
-                        {formatTime(programme.stop)}
+                        {formatTime(programme.start)} - {formatTime(programme.stop)}
                       </p>
                       <p className="text-xs text-gray-400">
                         {programme.start.toLocaleDateString("en-NZ", {
@@ -411,9 +359,7 @@ const ExpandedDetail: React.FC<ExpandedDetailProps> = React.memo(
                             key={prog.start.toISOString()}
                             className="flex items-center justify-between border-t border-white/10 pt-2 text-sm first:border-t-0 first:pt-0"
                           >
-                            <p className="truncate pr-4 text-gray-200">
-                              {prog.title}
-                            </p>
+                            <p className="truncate pr-4 text-gray-200">{prog.title}</p>
                             <p className="shrink-0 font-mono text-gray-400">
                               {formatTime(prog.start)}
                             </p>

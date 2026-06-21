@@ -87,9 +87,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
       aria-modal="true"
     >
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <h2 className="text-2xl font-bold text-white drop-shadow-lg">
-          7-Day Schedule
-        </h2>
+        <h2 className="text-2xl font-bold text-white drop-shadow-lg">7-Day Schedule</h2>
         <button
           onClick={onClose}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-(--md-sys-color-outline) bg-(--md-sys-color-surface) text-2xl font-bold text-(--md-sys-color-on-surface) shadow-lg transition-colors hover:bg-(--md-sys-color-primary) hover:text-black"

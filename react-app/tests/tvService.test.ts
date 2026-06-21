@@ -89,9 +89,7 @@ describe("tvService", () => {
           text: () => Promise.resolve(""),
         } as Response);
 
-      await expect(fetchAllData()).rejects.toThrow(
-        "Failed to fetch data from source",
-      );
+      await expect(fetchAllData()).rejects.toThrow("Failed to fetch data from source");
     });
 
     it("should filter out programmes with invalid start or stop dates", async () => {

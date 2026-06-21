@@ -56,10 +56,7 @@ export const findCurrentProgramme = (
  * @param programmes List of programmes
  * @param timeMs Time in milliseconds
  */
-export const findFirstVisibleProgrammeIndex = (
-  programmes: Programme[],
-  timeMs: number,
-): number => {
+export const findFirstVisibleProgrammeIndex = (programmes: Programme[], timeMs: number): number => {
   let left = 0;
   let right = programmes.length - 1;
   let result = -1;

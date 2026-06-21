@@ -43,9 +43,7 @@ const ScheduleTimeline: React.FC<ScheduleTimelineProps> = React.memo(
     return (
       <div className="sticky left-0 z-50 w-24 shrink-0 bg-(--md-sys-color-background)">
         <div className="sticky top-0 z-60 flex h-24 items-center justify-center border-r border-b border-(--md-sys-color-outline) bg-(--md-sys-color-background)">
-          <span className="font-bold text-(--md-sys-color-on-surface)">
-            Time
-          </span>
+          <span className="font-bold text-(--md-sys-color-on-surface)">Time</span>
         </div>
         <div className="relative">
           {timelineItems.map((item) => (

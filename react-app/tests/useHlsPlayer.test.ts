@@ -77,10 +77,7 @@ function makeVideoMock(
 // Helper: build a video ref with a captured HLS event callback map
 // --------------------------------------------------------------------------
 function makeHlsSetup(videoMock: HTMLVideoElement) {
-  const callbacks: Record<
-    string,
-    ((event: string, data: unknown) => void) | undefined
-  > = {};
+  const callbacks: Record<string, ((event: string, data: unknown) => void) | undefined> = {};
   mockHlsInstance.on.mockImplementation(
     (event: string, cb: (event: string, data: unknown) => void) => {
       callbacks[event] = cb;
@@ -113,9 +110,7 @@ describe("useHlsPlayer – core functionality", () => {
       }),
     );
 
-    expect(mockHlsInstance.loadSource).toHaveBeenCalledWith(
-      "https://example.com/stream.m3u8",
-    );
+    expect(mockHlsInstance.loadSource).toHaveBeenCalledWith("https://example.com/stream.m3u8");
     expect(mockHlsInstance.attachMedia).toHaveBeenCalledWith(videoMock);
   });
 
@@ -225,9 +220,7 @@ describe("useHlsPlayer – core functionality", () => {
       });
     });
 
-    expect(result.current.hlsError).toBe(
-      "Playback error. Please try again later.",
-    );
+    expect(result.current.hlsError).toBe("Playback error. Please try again later.");
     expect(mockHlsInstance.destroy).toHaveBeenCalled();
   });
 
@@ -341,11 +334,9 @@ describe("useHlsPlayer – error path coverage", () => {
   // -------------------------------------------------------------------------
   describe("handleManifestParsed – video.play() catch (line 99)", () => {
     it("should swallow AbortError thrown by video.play()", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       const abortError = Object.assign(new Error("aborted"), {
         name: "AbortError",
@@ -387,11 +378,9 @@ describe("useHlsPlayer – error path coverage", () => {
     });
 
     it("should log non-AbortError failures from video.play()", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       const networkError = Object.assign(new Error("not allowed"), {
         name: "NotAllowedError",
@@ -422,10 +411,7 @@ describe("useHlsPlayer – error path coverage", () => {
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
       });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "[VideoPlayer] Play failed",
-        networkError,
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("[VideoPlayer] Play failed", networkError);
       consoleErrorSpy.mockRestore();
     });
   });

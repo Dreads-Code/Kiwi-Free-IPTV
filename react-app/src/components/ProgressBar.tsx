@@ -20,9 +20,7 @@ const calculateProgress = (start: Date, stop: Date): number => {
 };
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ start, stop }) => {
-  const [progress, setProgress] = useState(() =>
-    calculateProgress(start, stop),
-  );
+  const [progress, setProgress] = useState(() => calculateProgress(start, stop));
 
   useEffect(() => {
     // Recalculate when props change is handled by key prop in parent

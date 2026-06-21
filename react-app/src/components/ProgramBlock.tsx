@@ -16,18 +16,13 @@ interface ProgramBlockProps extends React.HTMLAttributes<HTMLDivElement> {
 const MIN_HEIGHT = 60; // Enforce a minimum height for visibility
 
 const getCategoryColor = (category?: string): string => {
-  if (!category)
-    return "bg-slate-800/60 border-slate-700 hover:bg-slate-700/80";
+  if (!category) return "bg-slate-800/60 border-slate-700 hover:bg-slate-700/80";
 
   const cat = category.toLowerCase();
-  if (cat.includes("movie"))
-    return "bg-blue-900/90 border-blue-700 hover:bg-blue-800";
-  if (cat.includes("sport"))
-    return "bg-green-900/90 border-green-700 hover:bg-green-800";
-  if (cat.includes("news"))
-    return "bg-amber-900/90 border-amber-700 hover:bg-amber-800";
-  if (cat.includes("drama"))
-    return "bg-purple-900/90 border-purple-700 hover:bg-purple-800";
+  if (cat.includes("movie")) return "bg-blue-900/90 border-blue-700 hover:bg-blue-800";
+  if (cat.includes("sport")) return "bg-green-900/90 border-green-700 hover:bg-green-800";
+  if (cat.includes("news")) return "bg-amber-900/90 border-amber-700 hover:bg-amber-800";
+  if (cat.includes("drama")) return "bg-purple-900/90 border-purple-700 hover:bg-purple-800";
   if (cat.includes("children") || cat.includes("kids"))
     return "bg-pink-900/90 border-pink-700 hover:bg-pink-800";
 
@@ -35,14 +30,7 @@ const getCategoryColor = (category?: string): string => {
 };
 
 const ProgramBlock: React.FC<ProgramBlockProps> = React.memo(
-  ({
-    programme,
-    pixelsPerHour,
-    scheduleStartTime,
-    onSelect,
-    className,
-    ...rest
-  }) => {
+  ({ programme, pixelsPerHour, scheduleStartTime, onSelect, className, ...rest }) => {
     const startTimeMs = programme.startMs;
     const stopTimeMs = programme.stopMs;
     const scheduleStartMs = scheduleStartTime.getTime();
@@ -87,14 +75,10 @@ const ProgramBlock: React.FC<ProgramBlockProps> = React.memo(
         }}
         title={`${programme.title}\n${programme.description}`}
       >
-        <p className="line-clamp-2 text-sm leading-tight font-bold">
-          {programme.title}
-        </p>
+        <p className="line-clamp-2 text-sm leading-tight font-bold">{programme.title}</p>
         {showDetails && (
           <div className="mt-1 space-y-1">
-            <p className="line-clamp-3 text-xs text-white/70">
-              {programme.description}
-            </p>
+            <p className="line-clamp-3 text-xs text-white/70">{programme.description}</p>
             <div className="flex items-center gap-2 pt-1">
               {programme.isNew && (
                 <span className="shrink-0 rounded-full bg-(--md-sys-color-primary) px-2 py-0.5 text-[10px] font-bold text-(--md-sys-color-on-primary)">

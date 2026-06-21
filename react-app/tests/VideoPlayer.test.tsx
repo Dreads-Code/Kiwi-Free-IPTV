@@ -70,9 +70,7 @@ describe("VideoPlayer", () => {
     // Re-stub Hls after vitest.setup.ts afterEach runs vi.unstubAllGlobals()
     vi.stubGlobal("Hls", MockHls);
     // Default mock implementation
-    vi.mocked(streamProxyService.resolveStreamUrl).mockResolvedValue(
-      mockChannel.url,
-    );
+    vi.mocked(streamProxyService.resolveStreamUrl).mockResolvedValue(mockChannel.url);
     // jsdom's HTMLMediaElement.play() returns undefined; mock it to return a Promise
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
       configurable: true,
@@ -94,9 +92,7 @@ describe("VideoPlayer", () => {
     // Check if HLS was initialized
     await waitFor(
       () => {
-        expect(mockHlsInstance.loadSource).toHaveBeenCalledWith(
-          mockChannel.url,
-        );
+        expect(mockHlsInstance.loadSource).toHaveBeenCalledWith(mockChannel.url);
       },
       { timeout: 3000 },
     );
@@ -104,9 +100,7 @@ describe("VideoPlayer", () => {
 
   it("should handle the URL resolution via resolveStreamUrl before playing", async () => {
     const resolvedUrl = "https://resolved.com/stream.m3u8";
-    vi.mocked(streamProxyService.resolveStreamUrl).mockResolvedValueOnce(
-      resolvedUrl,
-    );
+    vi.mocked(streamProxyService.resolveStreamUrl).mockResolvedValueOnce(resolvedUrl);
 
     render(
       <VideoPlayer
@@ -172,11 +166,9 @@ describe("VideoPlayer", () => {
   // -------------------------------------------------------------------------
   describe("keyboard shortcut error paths", () => {
     it("should catch and log errors from video.play() triggered by spacebar (line 128)", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       render(
         <VideoPlayer
@@ -192,9 +184,7 @@ describe("VideoPlayer", () => {
       });
 
       // Simulate spacebar keydown to trigger video.play()
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: " ", bubbles: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
 
       // The video element itself is a mock without a real play(); any error
       // should be swallowed without crashing the component
@@ -203,11 +193,9 @@ describe("VideoPlayer", () => {
     });
 
     it("should catch and log errors from handleFullscreenToggle() triggered by 'f' key (line 137)", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       render(
         <VideoPlayer
@@ -223,9 +211,7 @@ describe("VideoPlayer", () => {
       });
 
       // Stub requestFullscreen to reject
-      const requestFullscreenMock = vi
-        .fn()
-        .mockRejectedValue(new Error("fullscreen denied"));
+      const requestFullscreenMock = vi.fn().mockRejectedValue(new Error("fullscreen denied"));
       Object.defineProperty(document.body, "requestFullscreen", {
         value: requestFullscreenMock,
         writable: true,
@@ -238,9 +224,7 @@ describe("VideoPlayer", () => {
       });
 
       await act(async () => {
-        document.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "f", bubbles: true }),
-        );
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true }));
         // Allow the rejection to settle
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
       });
@@ -256,11 +240,9 @@ describe("VideoPlayer", () => {
   // -------------------------------------------------------------------------
   describe("handlePlayPause error path (line 170)", () => {
     it("should log non-AbortError from video.play() in handlePlayPause", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       render(
         <VideoPlayer
@@ -294,22 +276,16 @@ describe("VideoPlayer", () => {
   // -------------------------------------------------------------------------
   describe("handlePipToggle error path (line 199)", () => {
     it("should catch and log PiP errors without crashing the component", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       // Make requestPictureInPicture throw
-      Object.defineProperty(
-        HTMLVideoElement.prototype,
-        "requestPictureInPicture",
-        {
-          value: vi.fn().mockRejectedValue(new Error("PiP failed")),
-          writable: true,
-          configurable: true,
-        },
-      );
+      Object.defineProperty(HTMLVideoElement.prototype, "requestPictureInPicture", {
+        value: vi.fn().mockRejectedValue(new Error("PiP failed")),
+        writable: true,
+        configurable: true,
+      });
 
       render(
         <VideoPlayer

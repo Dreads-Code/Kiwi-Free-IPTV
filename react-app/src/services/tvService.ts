@@ -118,11 +118,8 @@ export const fetchAllData = async (): Promise<{
   let epgText: string;
 
   if (cachedEpg) {
-    const m3u8Res = await fetch(
-      `/api/fetch?url=${encodeURIComponent(MJH_NZ_M3U8)}`,
-    );
-    if (!m3u8Res.ok)
-      throw new Error(`Failed to fetch M3U8: ${m3u8Res.status.toString()}`);
+    const m3u8Res = await fetch(`/api/fetch?url=${encodeURIComponent(MJH_NZ_M3U8)}`);
+    if (!m3u8Res.ok) throw new Error(`Failed to fetch M3U8: ${m3u8Res.status.toString()}`);
     m3u8Text = await m3u8Res.text();
     epgText = cachedEpg;
   } else {

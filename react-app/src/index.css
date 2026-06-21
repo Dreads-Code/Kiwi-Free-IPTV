@@ -2,8 +2,8 @@
 
 @theme {
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 :root {
@@ -26,8 +26,7 @@
   --md-sys-color-shadow: #000000;
 
   /* Custom properties for the new design */
-  --glow-shadow-primary:
-    0 0 5px var(--md-sys-color-primary), 0 0 10px var(--md-sys-color-primary);
+  --glow-shadow-primary: 0 0 5px var(--md-sys-color-primary), 0 0 10px var(--md-sys-color-primary);
   --glass-backdrop-blur: 16px;
   --border-radius-lg: 16px;
   --border-radius-xl: 24px;

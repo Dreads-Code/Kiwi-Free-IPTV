@@ -2,6 +2,40 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
+// Mock localStorage to bypass Node 24's experimental native localStorage
+const mockLocalStorage = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] || null,
+  };
+})();
+
+Object.defineProperty(globalThis, "localStorage", {
+  value: mockLocalStorage,
+  writable: true,
+  configurable: true,
+});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "localStorage", {
+    value: mockLocalStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -34,19 +68,11 @@ const defineMock = (obj: object, prop: string, value: unknown) => {
 };
 
 // Mock Picture-in-Picture API
-defineMock(
-  HTMLVideoElement.prototype,
-  "requestPictureInPicture",
-  vi.fn().mockResolvedValue({}),
-);
+defineMock(HTMLVideoElement.prototype, "requestPictureInPicture", vi.fn().mockResolvedValue({}));
 defineMock(document, "exitPictureInPicture", vi.fn().mockResolvedValue({}));
 
 // Mock Fullscreen API
-defineMock(
-  Element.prototype,
-  "requestFullscreen",
-  vi.fn().mockResolvedValue({}),
-);
+defineMock(Element.prototype, "requestFullscreen", vi.fn().mockResolvedValue({}));
 defineMock(document, "exitFullscreen", vi.fn().mockResolvedValue({}));
 
 // Mock scrollIntoView
@@ -57,10 +83,8 @@ defineMock(HTMLMediaElement.prototype, "pause", vi.fn());
 defineMock(HTMLMediaElement.prototype, "load", vi.fn());
 
 // Mock requestAnimationFrame/cancelAnimationFrame
-globalThis.requestAnimationFrame = vi
-  .fn()
-  .mockImplementation((callback: FrameRequestCallback) => {
-    callback(globalThis.performance.now());
-    return 0;
-  });
+globalThis.requestAnimationFrame = vi.fn().mockImplementation((callback: FrameRequestCallback) => {
+  callback(globalThis.performance.now());
+  return 0;
+});
 globalThis.cancelAnimationFrame = vi.fn();

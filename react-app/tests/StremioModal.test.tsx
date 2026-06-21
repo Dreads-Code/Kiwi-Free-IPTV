@@ -26,9 +26,7 @@ describe("StremioModal", () => {
     render(<StremioModal {...defaultProps} />);
     expect(screen.getByText("Install Addon")).toBeDefined();
     expect(screen.getByText("Copy Install Link")).toBeDefined();
-    expect(
-      screen.getByText(/Install the official addon for Stremio/i),
-    ).toBeDefined();
+    expect(screen.getByText(/Install the official addon for Stremio/i)).toBeDefined();
   });
 
   it("should close when the dismiss action is triggered", () => {

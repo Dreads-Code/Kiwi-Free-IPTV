@@ -167,10 +167,7 @@ describe("useFullscreen – core functionality", () => {
     const containerRef = makeContainerRef();
 
     const { result } = renderHook(() =>
-      useFullscreen(
-        containerRef,
-        videoRef as unknown as { current: HTMLVideoElement | null },
-      ),
+      useFullscreen(containerRef, videoRef as unknown as { current: HTMLVideoElement | null }),
     );
 
     // Should not throw
@@ -189,10 +186,7 @@ describe("useFullscreen – core functionality", () => {
     const { unmount } = renderHook(() => useFullscreen(containerRef, videoRef));
     unmount();
 
-    expect(removeEventListenerSpy).toHaveBeenCalledWith(
-      "fullscreenchange",
-      expect.any(Function),
-    );
+    expect(removeEventListenerSpy).toHaveBeenCalledWith("fullscreenchange", expect.any(Function));
   });
 });
 
@@ -234,9 +228,7 @@ describe("useFullscreen – error path coverage", () => {
   describe("handleFullscreenChange – orientation unlock catch (line 37)", () => {
     it("should swallow errors thrown by screen.orientation.unlock() when exiting fullscreen", () => {
       // Make unlock throw
-      (
-        screen.orientation.unlock as ReturnType<typeof vi.fn>
-      ).mockImplementation(() => {
+      (screen.orientation.unlock as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error("unlock not supported");
       });
 
@@ -271,9 +263,7 @@ describe("useFullscreen – error path coverage", () => {
       const videoRef = makeVideoRef({ remote: mockRemote });
       const containerRef = makeContainerRef();
 
-      const { result } = renderHook(() =>
-        useFullscreen(containerRef, videoRef),
-      );
+      const { result } = renderHook(() => useFullscreen(containerRef, videoRef));
 
       await act(async () => {
         await rejectedPromise.catch(() => {
@@ -290,11 +280,9 @@ describe("useFullscreen – error path coverage", () => {
   // -------------------------------------------------------------------------
   describe("handleFullscreenToggle – orientation lock inner catch (line 86)", () => {
     it("should log info and continue when orientation.lock() fails", async () => {
-      const consoleInfoSpy = vi
-        .spyOn(console, "info")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {
+        /* no-op */
+      });
 
       const container = {
         requestFullscreen: vi.fn().mockResolvedValue(),
@@ -303,13 +291,11 @@ describe("useFullscreen – error path coverage", () => {
       const videoRef = makeVideoRef();
 
       // Make orientation.lock reject
-      (
-        screen.orientation as unknown as { lock: ReturnType<typeof vi.fn> }
-      ).lock.mockRejectedValue(new Error("orientation lock failed"));
-
-      const { result } = renderHook(() =>
-        useFullscreen(containerRef, videoRef),
+      (screen.orientation as unknown as { lock: ReturnType<typeof vi.fn> }).lock.mockRejectedValue(
+        new Error("orientation lock failed"),
       );
+
+      const { result } = renderHook(() => useFullscreen(containerRef, videoRef));
 
       await act(async () => {
         await result.current.handleFullscreenToggle();
@@ -328,23 +314,17 @@ describe("useFullscreen – error path coverage", () => {
   // -------------------------------------------------------------------------
   describe("handleFullscreenToggle – outer catch (line 93)", () => {
     it("should log error when requestFullscreen() rejects", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       const container = {
-        requestFullscreen: vi
-          .fn()
-          .mockRejectedValue(new Error("fullscreen denied")),
+        requestFullscreen: vi.fn().mockRejectedValue(new Error("fullscreen denied")),
       } as unknown as HTMLDivElement;
       const containerRef = { current: container };
       const videoRef = makeVideoRef();
 
-      const { result } = renderHook(() =>
-        useFullscreen(containerRef, videoRef),
-      );
+      const { result } = renderHook(() => useFullscreen(containerRef, videoRef));
 
       await act(async () => {
         await result.current.handleFullscreenToggle();
@@ -358,11 +338,9 @@ describe("useFullscreen – error path coverage", () => {
     });
 
     it("should log error when exitFullscreen() rejects", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       const containerRef = makeContainerRef();
       const videoRef = makeVideoRef();
@@ -377,9 +355,7 @@ describe("useFullscreen – error path coverage", () => {
         new Error("exit denied"),
       );
 
-      const { result } = renderHook(() =>
-        useFullscreen(containerRef, videoRef),
-      );
+      const { result } = renderHook(() => useFullscreen(containerRef, videoRef));
 
       await act(async () => {
         await result.current.handleFullscreenToggle();
@@ -405,11 +381,9 @@ describe("useFullscreen – error path coverage", () => {
   // -------------------------------------------------------------------------
   describe("handleCast – remote.prompt() rejection catch (line 106)", () => {
     it("should log error when remote.prompt() rejects", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       let capturedCallback: ((available: boolean) => void) | null = null;
       const rejectedPrompt = Promise.reject(new Error("cast prompt failed"));
@@ -418,21 +392,17 @@ describe("useFullscreen – error path coverage", () => {
       }); // prevent unhandled rejection
 
       const mockRemote = {
-        watchAvailability: vi
-          .fn()
-          .mockImplementation((cb: (available: boolean) => void) => {
-            capturedCallback = cb;
-            return Promise.resolve(42);
-          }),
+        watchAvailability: vi.fn().mockImplementation((cb: (available: boolean) => void) => {
+          capturedCallback = cb;
+          return Promise.resolve(42);
+        }),
         prompt: vi.fn().mockReturnValue(rejectedPrompt),
       };
 
       const videoRef = makeVideoRef({ remote: mockRemote });
       const containerRef = makeContainerRef();
 
-      const { result } = renderHook(() =>
-        useFullscreen(containerRef, videoRef),
-      );
+      const { result } = renderHook(() => useFullscreen(containerRef, videoRef));
 
       // Trigger isCastAvailable = true via the watchAvailability callback
       act(() => {

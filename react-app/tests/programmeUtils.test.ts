@@ -4,11 +4,7 @@ import type { Programme } from "../src/types";
 
 const HOUR = 3_600_000;
 
-function makeProg(
-  startMs: number,
-  durationMs: number,
-  title = "Test",
-): Programme {
+function makeProg(startMs: number, durationMs: number, title = "Test"): Programme {
   return {
     channelId: "test",
     start: new Date(startMs),

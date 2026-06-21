@@ -91,10 +91,9 @@ describe("useControlsVisibility", () => {
   });
 
   it("respects isPlaying ref: does not hide if paused before the timer fires", () => {
-    const { result, rerender } = renderHook(
-      ({ isPlaying }) => useControlsVisibility(isPlaying),
-      { initialProps: { isPlaying: true } },
-    );
+    const { result, rerender } = renderHook(({ isPlaying }) => useControlsVisibility(isPlaying), {
+      initialProps: { isPlaying: true },
+    });
 
     act(() => {
       result.current.showControls(); // timer will hide in 3s

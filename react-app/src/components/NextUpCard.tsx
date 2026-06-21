@@ -1,13 +1,7 @@
 import { Channel, Programme } from "../types";
 import { useProgramImage } from "../hooks/useShowImage";
 
-const NextUpCard = ({
-  programme,
-  channel,
-}: {
-  programme: Programme;
-  channel: Channel;
-}) => {
+const NextUpCard = ({ programme, channel }: { programme: Programme; channel: Channel }) => {
   const { posterUrl } = useProgramImage(programme, channel);
   if (!posterUrl) return null;
   return (
@@ -19,9 +13,7 @@ const NextUpCard = ({
       />
       <div className="ml-3 overflow-hidden">
         <p className="text-xs text-gray-300">Next Up</p>
-        <p className="line-clamp-3 text-sm leading-tight font-bold text-white">
-          {programme.title}
-        </p>
+        <p className="line-clamp-3 text-sm leading-tight font-bold text-white">{programme.title}</p>
       </div>
     </div>
   );

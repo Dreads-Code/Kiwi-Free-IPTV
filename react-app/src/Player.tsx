@@ -2,14 +2,7 @@
  * Player component - The main view of the IPTV application.
  * Handles channel navigation, EPG data loading, and modal management.
  */
-import React, {
-  useState,
-  useEffect,
-  useLayoutEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { Channel, EpgData, Programme } from "./types";
 import { fetchAllData } from "./services/tvService";
 import ChannelDeck from "./components/ChannelList";
@@ -38,11 +31,7 @@ const AppHeader: React.FC<{
   <header className="pointer-events-none fixed top-0 right-0 left-0 z-20 flex h-20 items-center justify-between bg-linear-to-b from-black/50 to-transparent px-4 sm:px-6 lg:px-8">
     <div className="pointer-events-auto flex items-center gap-4">
       <div className="flex items-center gap-2">
-        <img
-          src={logo}
-          alt="KiwiFreeTV Logo"
-          className="h-10 w-auto drop-shadow-lg"
-        />
+        <img src={logo} alt="KiwiFreeTV Logo" className="h-10 w-auto drop-shadow-lg" />
         <span className="hidden text-2xl font-bold text-white drop-shadow-lg sm:block">
           Free<span className="text-(--md-sys-color-primary)">TV</span>
         </span>
@@ -129,9 +118,7 @@ const Player: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
-    null,
-  );
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null);
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<{
     programme: Programme;
@@ -146,17 +133,13 @@ const Player: React.FC = () => {
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
 
   const [isStremioOpen, setIsStremioOpen] = useState<boolean>(false);
-  const [headerFocusAnchor, setHeaderFocusAnchor] = useState<
-    "stremio" | "schedule"
-  >("schedule");
+  const [headerFocusAnchor, setHeaderFocusAnchor] = useState<"stremio" | "schedule">("schedule");
 
   const [focusLocation, setFocusLocation] = useState<"deck" | "header">("deck");
   const scheduleButtonRef = useRef<HTMLButtonElement>(null);
   const stremioButtonRef = useRef<HTMLButtonElement>(null);
   const keyPressCooldownRef = useRef(false);
-  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modalDepthRef = useRef(0);
 
   // Internal state clearers (no history side effects)
@@ -204,11 +187,7 @@ const Player: React.FC = () => {
       }
     } catch (error_) {
       if (!isCancelled.current) {
-        setError(
-          error_ instanceof Error
-            ? error_.message
-            : "An unknown error occurred.",
-        );
+        setError(error_ instanceof Error ? error_.message : "An unknown error occurred.");
         console.error(error_);
       }
     } finally {
@@ -332,12 +311,9 @@ const Player: React.FC = () => {
     }
   }, [closeStremio]);
 
-  const handleProgrammeSelect = useCallback(
-    (programme: Programme, channel: Channel) => {
-      setSelectedScheduleItem({ programme, channel });
-    },
-    [],
-  );
+  const handleProgrammeSelect = useCallback((programme: Programme, channel: Channel) => {
+    setSelectedScheduleItem({ programme, channel });
+  }, []);
 
   const stateRef = useRef({
     playingChannel,
@@ -382,8 +358,7 @@ const Player: React.FC = () => {
   // Handle hardware back button
   useEffect(() => {
     const handlePopState = () => {
-      const { playingChannel, detailData, scheduleViewConfig, isStremioOpen } =
-        stateRef.current;
+      const { playingChannel, detailData, scheduleViewConfig, isStremioOpen } = stateRef.current;
 
       // Close top-most layer
       if (playingChannel) {
@@ -405,8 +380,7 @@ const Player: React.FC = () => {
 
   useEffect(() => {
     const handleEscape = () => {
-      const { playingChannel, detailData, scheduleViewConfig } =
-        stateRef.current;
+      const { playingChannel, detailData, scheduleViewConfig } = stateRef.current;
       if (playingChannel) {
         handleClosePlayer();
       } else if (detailData) {
@@ -446,10 +420,8 @@ const Player: React.FC = () => {
     };
 
     const handleChannelNavigation = (direction: "left" | "right") => {
-      const { focusLocation, channels, activeChannelId, keyPressCooldownRef } =
-        stateRef.current;
-      if (focusLocation !== "deck" || channels.length === 0 || !activeChannelId)
-        return;
+      const { focusLocation, channels, activeChannelId, keyPressCooldownRef } = stateRef.current;
+      if (focusLocation !== "deck" || channels.length === 0 || !activeChannelId) return;
 
       if (keyPressCooldownRef.current) return;
       keyPressCooldownRef.current = true;
@@ -467,14 +439,12 @@ const Player: React.FC = () => {
       if (currentIndex === -1) return;
 
       const dir = direction === "right" ? 1 : -1;
-      const nextIndex =
-        (currentIndex + dir + channels.length) % channels.length;
+      const nextIndex = (currentIndex + dir + channels.length) % channels.length;
       setActiveChannelId(channels[nextIndex].id);
     };
 
     const handleSelection = () => {
-      const { focusLocation, activeChannelId, headerFocusAnchor } =
-        stateRef.current;
+      const { focusLocation, activeChannelId, headerFocusAnchor } = stateRef.current;
       if (focusLocation === "header") {
         if (headerFocusAnchor === "schedule") {
           handleOpenSchedule(null);
@@ -487,8 +457,7 @@ const Player: React.FC = () => {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { playingChannel, detailData, scheduleViewConfig, isStremioOpen } =
-        stateRef.current;
+      const { playingChannel, detailData, scheduleViewConfig, isStremioOpen } = stateRef.current;
 
       if (e.key === "Escape") {
         handleEscape();
@@ -496,10 +465,7 @@ const Player: React.FC = () => {
       }
 
       const isNavigationActive =
-        !playingChannel &&
-        !detailData &&
-        !scheduleViewConfig.isOpen &&
-        !isStremioOpen;
+        !playingChannel && !detailData && !scheduleViewConfig.isOpen && !isStremioOpen;
       if (!isNavigationActive) return;
 
       switch (e.key) {
@@ -563,9 +529,7 @@ const Player: React.FC = () => {
   ]);
 
   const channelsForSchedule = useMemo(() => {
-    return scheduleViewConfig.channelContext
-      ? [scheduleViewConfig.channelContext]
-      : channels;
+    return scheduleViewConfig.channelContext ? [scheduleViewConfig.channelContext] : channels;
   }, [scheduleViewConfig.channelContext, channels]);
 
   return (

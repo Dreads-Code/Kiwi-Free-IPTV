@@ -54,9 +54,7 @@ describe("Player – error path coverage", () => {
   // -------------------------------------------------------------------------
   describe("loadData catch block (line 196)", () => {
     it("should display an error message when fetchAllData rejects with an Error", async () => {
-      vi.mocked(fetchAllData).mockRejectedValueOnce(
-        new Error("Failed to fetch channel data"),
-      );
+      vi.mocked(fetchAllData).mockRejectedValueOnce(new Error("Failed to fetch channel data"));
 
       render(<Player />);
 

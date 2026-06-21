@@ -61,27 +61,16 @@ interface UseHlsPlayerParams {
   headers: Record<string, string> | undefined;
 }
 
-export function useHlsPlayer({
-  videoRef,
-  streamUrl,
-  resolvedUrl,
-  headers,
-}: UseHlsPlayerParams) {
+export function useHlsPlayer({ videoRef, streamUrl, resolvedUrl, headers }: UseHlsPlayerParams) {
   const hlsRef = useRef<HlsInstance | null>(null);
   const effectiveStreamUrlRef = useRef<string>(streamUrl);
   const retryCountRef = useRef<number>(0);
   const headersRef = useRef(headers);
-  const handleHlsErrorRef = useRef<
-    ((_event: string, data: unknown) => void) | null
-  >(null);
+  const handleHlsErrorRef = useRef<((_event: string, data: unknown) => void) | null>(null);
 
-  const [subtitleTracks, setSubtitleTracks] = useState<
-    { id: number; label: string }[]
-  >([]);
+  const [subtitleTracks, setSubtitleTracks] = useState<{ id: number; label: string }[]>([]);
   const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(-1);
-  const [qualities, setQualities] = useState<
-    { id: number; height: number; bitrate: number }[]
-  >([]);
+  const [qualities, setQualities] = useState<{ id: number; height: number; bitrate: number }[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [hlsError, setHlsError] = useState<string | null>(null);
 
@@ -129,10 +118,7 @@ export function useHlsPlayer({
               newEffectiveUrl = xhr.responseURL;
             }
           }
-          if (
-            newEffectiveUrl &&
-            effectiveStreamUrlRef.current !== newEffectiveUrl
-          ) {
+          if (newEffectiveUrl && effectiveStreamUrlRef.current !== newEffectiveUrl) {
             effectiveStreamUrlRef.current = newEffectiveUrl;
           }
           xhr.removeEventListener("readystatechange", onReadyStateChange);
@@ -148,12 +134,8 @@ export function useHlsPlayer({
       try {
         const urlObj = new URL(url);
         const unwrapped =
-          decodeProxyUrl(effectiveStreamUrlRef.current) ??
-          effectiveStreamUrlRef.current;
-        const streamBaseUrl = unwrapped.slice(
-          0,
-          unwrapped.lastIndexOf("/") + 1,
-        );
+          decodeProxyUrl(effectiveStreamUrlRef.current) ?? effectiveStreamUrlRef.current;
+        const streamBaseUrl = unwrapped.slice(0, unwrapped.lastIndexOf("/") + 1);
         const pathToResolve = urlObj.pathname.startsWith("/api/")
           ? urlObj.pathname.slice(5)
           : urlObj.pathname.slice(1);
@@ -166,10 +148,7 @@ export function useHlsPlayer({
   }, []);
 
   const handleRetry = useCallback(
-    (
-      _failedUrl: string,
-      onHlsError: (_event: string, data: unknown) => void,
-    ) => {
+    (_failedUrl: string, onHlsError: (_event: string, data: unknown) => void) => {
       const video = videoRef.current;
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current++;
@@ -197,10 +176,7 @@ export function useHlsPlayer({
   );
 
   const handleProxyFallback = useCallback(
-    (
-      failedUrl: string,
-      onHlsError: (_event: string, data: unknown) => void,
-    ) => {
+    (failedUrl: string, onHlsError: (_event: string, data: unknown) => void) => {
       const video = videoRef.current;
       hlsRef.current?.destroy();
       const proxyUrl = applyProxyRules(failedUrl, headersRef.current);
@@ -254,15 +230,10 @@ export function useHlsPlayer({
         errorData.details === "bufferAppendError";
 
       const isProxied = isProxiedUrl(errorData.url ?? streamUrl);
-      const isHighConfidence = isHighConfidenceDirect(
-        errorData.url ?? streamUrl,
-      );
+      const isHighConfidence = isHighConfidenceDirect(errorData.url ?? streamUrl);
 
       const isRecoverable =
-        (errorData.fatal &&
-          isNetworkError &&
-          isManifestOrLevelError &&
-          !isProxied) ||
+        (errorData.fatal && isNetworkError && isManifestOrLevelError && !isProxied) ||
         (errorData.type === Hls.ErrorTypes.MEDIA_ERROR && !isProxied);
 
       if (!isRecoverable) {
@@ -274,21 +245,17 @@ export function useHlsPlayer({
       const failedUrl = errorData.url ?? streamUrl;
 
       if (isNetworkError && isManifestOrLevelError && !isProxied) {
-        const errorHandler = (e: string, d: unknown) =>
-          handleHlsErrorRef.current?.(e, d);
+        const errorHandler = (e: string, d: unknown) => handleHlsErrorRef.current?.(e, d);
         if (handleRetry(failedUrl, errorHandler)) return;
       }
 
       if (isRecoverable) {
         if (isHighConfidence) {
           hls?.destroy();
-          setHlsError(
-            "Stream unavailable in your region. Please try again later.",
-          );
+          setHlsError("Stream unavailable in your region. Please try again later.");
           return;
         }
-        const errorHandler = (e: string, d: unknown) =>
-          handleHlsErrorRef.current?.(e, d);
+        const errorHandler = (e: string, d: unknown) => handleHlsErrorRef.current?.(e, d);
         handleProxyFallback(failedUrl, errorHandler);
         return;
       }
@@ -316,8 +283,7 @@ export function useHlsPlayer({
 
     effectiveStreamUrlRef.current = streamUrl;
     const isHls =
-      streamUrl.toLowerCase().includes(".m3u8") ||
-      resolvedUrl.toLowerCase().includes(".m3u8");
+      streamUrl.toLowerCase().includes(".m3u8") || resolvedUrl.toLowerCase().includes(".m3u8");
 
     if (isHls) {
       if (Hls.isSupported()) {
@@ -334,18 +300,14 @@ export function useHlsPlayer({
           handleManifestParsed();
         });
         hls.on(Hls.Events.ERROR, handleHlsError);
-        hls.on(
-          Hls.Events.SUBTITLE_TRACKS_UPDATED,
-          (_event: string, data: unknown) => {
-            const subtitleData = data as HlsSubtitleTracksUpdatedData;
-            const tracks = subtitleData.subtitleTracks.map((track, index) => ({
-              id: index,
-              label:
-                track.name ?? track.lang ?? `Track ${(index + 1).toString()}`,
-            }));
-            setSubtitleTracks(tracks);
-          },
-        );
+        hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_event: string, data: unknown) => {
+          const subtitleData = data as HlsSubtitleTracksUpdatedData;
+          const tracks = subtitleData.subtitleTracks.map((track, index) => ({
+            id: index,
+            label: track.name ?? track.lang ?? `Track ${(index + 1).toString()}`,
+          }));
+          setSubtitleTracks(tracks);
+        });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS fallback (Safari/iOS)
         video.src = resolvedUrl;
@@ -382,10 +344,7 @@ export function useHlsPlayer({
           hls?.destroy();
           video.removeEventListener("loadedmetadata", handleManifestParsed);
           video.textTracks.removeEventListener("addtrack", handleTracksChanged);
-          video.textTracks.removeEventListener(
-            "removetrack",
-            handleTracksChanged,
-          );
+          video.textTracks.removeEventListener("removetrack", handleTracksChanged);
           video.removeAttribute("src");
           video.load();
         };
@@ -401,14 +360,7 @@ export function useHlsPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [
-    streamUrl,
-    resolvedUrl,
-    xhrSetup,
-    handleManifestParsed,
-    handleHlsError,
-    videoRef,
-  ]);
+  }, [streamUrl, resolvedUrl, xhrSetup, handleManifestParsed, handleHlsError, videoRef]);
 
   const handleSubtitleChange = useCallback(
     (trackId: number) => {

@@ -45,15 +45,11 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
           // Since programs are sorted by start time in tvService,
           // the first program that ENDS after our start time is the
           // starting point for what we need to render.
-          const firstActiveIdx = findFirstVisibleProgrammeIndex(
-            rawProgs,
-            start,
-          );
+          const firstActiveIdx = findFirstVisibleProgrammeIndex(rawProgs, start);
 
           return {
             channel,
-            programmes:
-              firstActiveIdx === -1 ? [] : rawProgs.slice(firstActiveIdx),
+            programmes: firstActiveIdx === -1 ? [] : rawProgs.slice(firstActiveIdx),
           };
         })
         .filter((item) => item.programmes.length > 0);
@@ -79,20 +75,14 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
 
             // Safety check: ensure coordinates are still valid
             if (targetChannel >= memoizedSchedule.length) targetChannel = 0;
-            if (
-              targetProg >=
-              (memoizedSchedule[targetChannel]?.programmes?.length || 0)
-            )
+            if (targetProg >= (memoizedSchedule[targetChannel]?.programmes?.length || 0))
               targetProg = 0;
           } else {
             // Default to "Now" for the first channel
             targetChannel = 0;
             const now = Date.now();
             const firstChannelProgs = memoizedSchedule[0]?.programmes ?? [];
-            const nowIdx = findCurrentProgrammeIndex(
-              firstChannelProgs,
-              new Date(now),
-            );
+            const nowIdx = findCurrentProgrammeIndex(firstChannelProgs, new Date(now));
             targetProg = nowIdx === -1 ? 0 : nowIdx;
           }
 
@@ -111,11 +101,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       };
     }, [memoizedSchedule, isCovered]);
 
-    const handleHorizontalNav = (
-      key: string,
-      channelIdx: number,
-      progIdx: number,
-    ) => {
+    const handleHorizontalNav = (key: string, channelIdx: number, progIdx: number) => {
       const currentProg = memoizedSchedule[channelIdx].programmes[progIdx];
       const currentTime = currentProg.startMs + 1000;
       const nextChannel =
@@ -126,15 +112,9 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
 
       const nextProgs = memoizedSchedule[nextChannel].programmes;
 
-      const foundIdx = findCurrentProgrammeIndex(
-        nextProgs,
-        new Date(currentTime),
-      );
+      const foundIdx = findCurrentProgrammeIndex(nextProgs, new Date(currentTime));
       if (foundIdx === -1) {
-        const closestIdx = findFirstProgrammeStartingAfter(
-          nextProgs,
-          currentTime,
-        );
+        const closestIdx = findFirstProgrammeStartingAfter(nextProgs, currentTime);
         return {
           nextChannel,
           nextProg: closestIdx === -1 ? nextProgs.length - 1 : closestIdx,
@@ -143,11 +123,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       return { nextChannel, nextProg: foundIdx };
     };
 
-    const getNextIndices = (
-      key: string,
-      channelIdx: number,
-      progIdx: number,
-    ) => {
+    const getNextIndices = (key: string, channelIdx: number, progIdx: number) => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         return handleHorizontalNav(key, channelIdx, progIdx);
       }
@@ -155,8 +131,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
         return { nextChannel: channelIdx, nextProg: Math.max(0, progIdx - 1) };
       }
       if (key === "ArrowDown") {
-        const programmesLen =
-          memoizedSchedule[channelIdx]?.programmes.length || 1;
+        const programmesLen = memoizedSchedule[channelIdx]?.programmes.length || 1;
         return {
           nextChannel: channelIdx,
           nextProg: Math.min(programmesLen - 1, progIdx + 1),
@@ -171,15 +146,11 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       if (!grid) return;
 
       const isInternalFocus = active !== null && grid.contains(active);
-      const channelIdxStr = isInternalFocus
-        ? (active.dataset.channel ?? null)
-        : null;
+      const channelIdxStr = isInternalFocus ? (active.dataset.channel ?? null) : null;
       const progIdxStr = isInternalFocus ? (active.dataset.prog ?? null) : null;
 
       if (channelIdxStr === null || progIdxStr === null) {
-        if (
-          ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)
-        ) {
+        if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)) {
           e.preventDefault();
           const targetChannel = lastFocusedCoordsRef.current?.channel ?? 0;
           const targetProg = lastFocusedCoordsRef.current?.prog ?? 0;
@@ -194,17 +165,11 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
       const channelIdx = Number.parseInt(channelIdxStr, 10);
       const progIdx = Number.parseInt(progIdxStr, 10);
 
-      if (
-        !["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)
-      ) {
+      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         return;
       }
 
-      const { nextChannel, nextProg } = getNextIndices(
-        e.key,
-        channelIdx,
-        progIdx,
-      );
+      const { nextChannel, nextProg } = getNextIndices(e.key, channelIdx, progIdx);
 
       if (nextChannel !== channelIdx || nextProg !== progIdx) {
         e.preventDefault();
@@ -260,24 +225,16 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = React.memo(
             const visibleBottom = scrollTop + clientHeight + bufferPx;
 
             const visibleTopTime =
-              (visibleTop / pixelsPerHour) * (1000 * 60 * 60) +
-              scheduleStartTime.getTime();
+              (visibleTop / pixelsPerHour) * (1000 * 60 * 60) + scheduleStartTime.getTime();
             const visibleBottomTime =
-              (visibleBottom / pixelsPerHour) * (1000 * 60 * 60) +
-              scheduleStartTime.getTime();
+              (visibleBottom / pixelsPerHour) * (1000 * 60 * 60) + scheduleStartTime.getTime();
 
-            const startIndex = findFirstVisibleProgrammeIndex(
-              programmes,
-              visibleTopTime,
-            );
+            const startIndex = findFirstVisibleProgrammeIndex(programmes, visibleTopTime);
 
             const lastIndex =
               startIndex === -1
                 ? -1
-                : findFirstProgrammeStartingAfter(
-                    programmes,
-                    visibleBottomTime,
-                  );
+                : findFirstProgrammeStartingAfter(programmes, visibleBottomTime);
 
             const endIndex = lastIndex === -1 ? programmes.length : lastIndex;
 

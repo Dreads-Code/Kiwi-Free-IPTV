@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "plugins": ["typescript"],
+  "ignorePatterns": ["dist/**", "dev-dist/**", "src/wasm/**"],
+  "rules": {
+    "typescript/no-floating-promises": "error"
+  }
+}

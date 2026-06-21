@@ -1,7 +1,13 @@
 {
   "name": "iptv-nz-addon-rust",
   "type": "module",
-  "version": "1.6.0",
+  "description": "A high-performance, unified solution for streaming free-to-air New Zealand TV",
+  "version": "1.7.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dreads-Code/Kiwi-Free-IPTV"
+  },
   "files": [
     "iptv_nz_addon_rust_bg.wasm",
     "iptv_nz_addon_rust.js",

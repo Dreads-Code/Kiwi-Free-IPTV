@@ -47,9 +47,7 @@ describe("ScheduleModal", () => {
   });
 
   it("should return null if isOpen is false", () => {
-    const { container } = render(
-      <ScheduleModal {...defaultProps} isOpen={false} />,
-    );
+    const { container } = render(<ScheduleModal {...defaultProps} isOpen={false} />);
     expect(container.firstChild).toBeNull();
   });
 });

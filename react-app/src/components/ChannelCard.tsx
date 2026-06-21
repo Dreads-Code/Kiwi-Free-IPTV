@@ -22,10 +22,7 @@ const DeckChannelCard = ({
   isActive,
   ref,
 }: DeckChannelCardProps) => {
-  const currentProgramme = useMemo(
-    () => findCurrentProgramme(programmes),
-    [programmes],
-  );
+  const currentProgramme = useMemo(() => findCurrentProgramme(programmes), [programmes]);
   const { posterUrl } = useProgramImage(currentProgramme, channel);
 
   const containerClasses = `

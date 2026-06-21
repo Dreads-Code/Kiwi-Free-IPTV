@@ -31,17 +31,13 @@ describe("NextUpCard", () => {
 
   it("renders nothing when no posterUrl", () => {
     mockUseProgramImage.mockReturnValue({ posterUrl: undefined });
-    const { container } = render(
-      <NextUpCard programme={dummyProgramme} channel={dummyChannel} />,
-    );
+    const { container } = render(<NextUpCard programme={dummyProgramme} channel={dummyChannel} />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders image and title when posterUrl is present", () => {
     mockUseProgramImage.mockReturnValue({ posterUrl: "https://show.png" });
-    const { container } = render(
-      <NextUpCard programme={dummyProgramme} channel={dummyChannel} />,
-    );
+    const { container } = render(<NextUpCard programme={dummyProgramme} channel={dummyChannel} />);
 
     expect(screen.getByText("Beautiful NZ")).toBeDefined();
 

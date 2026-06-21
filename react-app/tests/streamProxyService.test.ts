@@ -45,15 +45,11 @@ describe("streamProxyService", () => {
     });
 
     it("should return true for safe providers like Al Jazeera", () => {
-      expect(isAllowedUrl("https://thehlive.com/live.m3u8", mockCheck)).toBe(
-        true,
-      );
+      expect(isAllowedUrl("https://thehlive.com/live.m3u8", mockCheck)).toBe(true);
     });
 
     it("should return false for unlisted domains", () => {
-      expect(isAllowedUrl("https://example.com/video.m3u8", mockCheck)).toBe(
-        false,
-      );
+      expect(isAllowedUrl("https://example.com/video.m3u8", mockCheck)).toBe(false);
     });
   });
 
@@ -67,11 +63,9 @@ describe("streamProxyService", () => {
     // streamProxyService.ts:54 – catch block when URL parsing or encoding fails
     // -----------------------------------------------------------------------
     it("should fall back to the original URL when encoding throws (e.g. invalid URL)", () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       const invalidUrl = "not-a-valid-url";
       const result = applyProxyRules(invalidUrl);
@@ -86,11 +80,9 @@ describe("streamProxyService", () => {
     });
 
     it("should fall back to the original URL when btoa throws (non-latin1 characters)", () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {
-          /* no-op */
-        });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        /* no-op */
+      });
 
       // Valid URL but contains characters that btoa might struggle with depending on environment
       // "🚀" is U+1F680, which is definitely outside the 0-255 range.
@@ -192,12 +184,8 @@ describe("streamProxyService", () => {
 
     it("should immediately return if already proxied or ends in .ts/.mp4", async () => {
       expect(await resolveStreamUrl("/proxy/abc")).toBe("/proxy/abc");
-      expect(await resolveStreamUrl("https://ext.com/file.ts")).toBe(
-        "https://ext.com/file.ts",
-      );
-      expect(await resolveStreamUrl("https://ext.com/vid.mp4")).toBe(
-        "https://ext.com/vid.mp4",
-      );
+      expect(await resolveStreamUrl("https://ext.com/file.ts")).toBe("https://ext.com/file.ts");
+      expect(await resolveStreamUrl("https://ext.com/vid.mp4")).toBe("https://ext.com/vid.mp4");
     });
 
     it("should resolve mjh handshake by making request and returning redirected URL", async () => {

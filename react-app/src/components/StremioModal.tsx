@@ -110,9 +110,7 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
-        isOpen
-          ? "opacity-100 backdrop-blur-md"
-          : "backdrop-blur-0 pointer-events-none opacity-0"
+        isOpen ? "opacity-100 backdrop-blur-md" : "backdrop-blur-0 pointer-events-none opacity-0"
       }`}
     >
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
@@ -141,9 +139,7 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
             />
           </div>
 
-          <h1 className="mt-4 text-xl font-bold tracking-tight text-white">
-            New Zealand TV
-          </h1>
+          <h1 className="mt-4 text-xl font-bold tracking-tight text-white">New Zealand TV</h1>
           <span className="mt-1 rounded-full border border-(--md-sys-color-primary)/20 bg-(--md-sys-color-primary-container)/30 px-3 py-0.5 text-[10px] font-bold tracking-wider text-(--md-sys-color-primary) uppercase">
             v{packageJson.version}
           </span>
@@ -152,8 +148,8 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
         {/* Content section */}
         <div className="p-8">
           <p className="mb-6 text-center text-sm leading-relaxed text-(--md-sys-color-on-surface-variant)">
-            Install the official addon for Stremio to enjoy your favorite NZ
-            channels across all your devices.
+            Install the official addon for Stremio to enjoy your favorite NZ channels across all
+            your devices.
           </p>
 
           <div className="flex flex-col gap-3">
@@ -166,9 +162,7 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
                   : "bg-(--md-sys-color-primary)/80 text-(--md-sys-color-on-primary)/90"
               }`}
             >
-              <span className="material-symbols-outlined text-xl">
-                download
-              </span>
+              <span className="material-symbols-outlined text-xl">download</span>
               Install Addon
             </button>
 
@@ -190,9 +184,7 @@ const StremioModal: React.FC<StremioModalProps> = ({ isOpen, onClose }) => {
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-xl opacity-70">
-                    content_copy
-                  </span>
+                  <span className="material-symbols-outlined text-xl opacity-70">content_copy</span>
                   Copy Install Link
                 </>
               )}

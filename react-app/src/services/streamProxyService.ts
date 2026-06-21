@@ -31,10 +31,7 @@ export const isAllowedUrl = (
  * @param headers Optional HTTP headers required for the stream
  * @returns A proxied URL string
  */
-export const applyProxyRules = (
-  url: string,
-  headers?: Record<string, string>,
-): string => {
+export const applyProxyRules = (url: string, headers?: Record<string, string>): string => {
   try {
     // Ensure the URL is valid before attempting to encode it
     new URL(url);
@@ -45,10 +42,7 @@ export const applyProxyRules = (
     }
 
     const jsonStr = JSON.stringify(payload);
-    const encoded = btoa(jsonStr)
-      .split("=")[0]
-      .replaceAll("+", "-")
-      .replaceAll("/", "_");
+    const encoded = btoa(jsonStr).split("=")[0].replaceAll("+", "-").replaceAll("/", "_");
 
     return `/proxy/${encoded}`;
   } catch (error) {
@@ -109,9 +103,7 @@ export const needsDirectPlay = (url: string): boolean => {
 
 export const isHighConfidenceDirect = (url: string): boolean => {
   const urlLower = url.toLowerCase();
-  return HIGH_CONFIDENCE_DIRECT_DOMAINS.some((domain) =>
-    urlLower.includes(domain),
-  );
+  return HIGH_CONFIDENCE_DIRECT_DOMAINS.some((domain) => urlLower.includes(domain));
 };
 
 export const resolveStreamUrl = async (

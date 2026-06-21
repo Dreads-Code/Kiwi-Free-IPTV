@@ -13,9 +13,7 @@ describe("ProgressBar", () => {
 
     // Total 2 hours, 1 hour passed -> 50%
     const { container } = render(<ProgressBar start={start} stop={stop} />);
-    const bar = container.querySelector(
-      String.raw`.bg-\(--md-sys-color-primary\)`,
-    );
+    const bar = container.querySelector(String.raw`.bg-\(--md-sys-color-primary\)`);
     expect((bar as HTMLElement).style.width).toBe("50%");
   });
 
@@ -24,9 +22,7 @@ describe("ProgressBar", () => {
     const stop = new Date(Date.now() - 3_600_000); // 1 hour ago
 
     const { container } = render(<ProgressBar start={start} stop={stop} />);
-    const bar = container.querySelector(
-      String.raw`.bg-\(--md-sys-color-primary\)`,
-    );
+    const bar = container.querySelector(String.raw`.bg-\(--md-sys-color-primary\)`);
     expect((bar as HTMLElement).style.width).toBe("100%");
   });
 
@@ -35,9 +31,7 @@ describe("ProgressBar", () => {
     const stop = new Date(Date.now() + 7_200_000); // 2 hours from now
 
     const { container } = render(<ProgressBar start={start} stop={stop} />);
-    const bar = container.querySelector(
-      String.raw`.bg-\(--md-sys-color-primary\)`,
-    );
+    const bar = container.querySelector(String.raw`.bg-\(--md-sys-color-primary\)`);
     expect((bar as HTMLElement).style.width).toBe("0%");
   });
 
@@ -57,9 +51,7 @@ describe("ProgressBar", () => {
     });
 
     // Re-calculating in test to verify
-    const bar = container.querySelector(
-      String.raw`.bg-\(--md-sys-color-primary\)`,
-    );
+    const bar = container.querySelector(String.raw`.bg-\(--md-sys-color-primary\)`);
     expect((bar as HTMLElement).style.width).toBeDefined();
   });
 });

@@ -47,8 +47,7 @@ export function useFullscreen(
     };
 
     const videoElement = video as HTMLVideoElementExtended;
-    const remote = (videoElement as unknown as { remote?: RemotePlayback })
-      .remote;
+    const remote = (videoElement as unknown as { remote?: RemotePlayback }).remote;
     if (remote && typeof remote.watchAvailability === "function") {
       remote
         .watchAvailability((available) => {
@@ -105,15 +104,12 @@ export function useFullscreen(
     const video = videoRef.current;
     if (!video) return;
     const videoElement = video as HTMLVideoElementExtended;
-    const remote = (videoElement as unknown as { remote?: RemotePlayback })
-      .remote;
+    const remote = (videoElement as unknown as { remote?: RemotePlayback }).remote;
     if (isCastAvailable && remote && typeof remote.prompt === "function") {
       remote.prompt().catch((error: unknown) => {
         console.error("Cast prompt failed:", error);
       });
-    } else if (
-      typeof videoElement.webkitShowPlaybackTargetPicker === "function"
-    ) {
+    } else if (typeof videoElement.webkitShowPlaybackTargetPicker === "function") {
       videoElement.webkitShowPlaybackTargetPicker();
     }
   }, [videoRef, isCastAvailable]);

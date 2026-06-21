@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 import { Programme, Channel } from "../types";
-import {
-  clean_show_title,
-  process_icon_url,
-} from "../wasm/iptv_nz_addon_rust.js";
+import { clean_show_title, process_icon_url } from "../wasm/iptv_nz_addon_rust.js";
 
 // Global cache for in-flight requests to prevent duplicate searches
 const inflightRequests = new Map<
@@ -84,7 +81,7 @@ export const useProgramImage = (
         const cacheKey = `tvmaze_v2_${cleanedTitle.toLowerCase()}`;
 
         // 2. Check LocalStorage persistent cache
-        const cached = localStorage.getItem(cacheKey);
+        const cached = window.localStorage.getItem(cacheKey);
         if (cached) {
           try {
             const parsed = JSON.parse(cached) as {
@@ -100,7 +97,7 @@ export const useProgramImage = (
             }
             return;
           } catch {
-            localStorage.removeItem(cacheKey);
+            window.localStorage.removeItem(cacheKey);
           }
         }
 
@@ -126,9 +123,7 @@ export const useProgramImage = (
           try {
             // Search TVMaze via Byte-Pipe
             const searchUrl = `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(cleanedTitle)}`;
-            const searchRes = await fetch(
-              `/api/fetch?url=${encodeURIComponent(searchUrl)}`,
-            );
+            const searchRes = await fetch(`/api/fetch?url=${encodeURIComponent(searchUrl)}`);
             if (!searchRes.ok) throw new Error("Search failed");
 
             const searchData = (await searchRes.json()) as TvMazeSearchResult[];
@@ -144,9 +139,7 @@ export const useProgramImage = (
 
             // Fetch additional assets if needed
             const assetsUrl = `https://api.tvmaze.com/shows/${showId.toString()}/images`;
-            const assetsRes = await fetch(
-              `/api/fetch?url=${encodeURIComponent(assetsUrl)}`,
-            );
+            const assetsRes = await fetch(`/api/fetch?url=${encodeURIComponent(assetsUrl)}`);
             if (assetsRes.ok) {
               const assets = (await assetsRes.json()) as TvMazeImage[];
               for (const img of assets) {
@@ -181,7 +174,7 @@ export const useProgramImage = (
             banner: result.banner,
           });
           // Save to persistent cache
-          localStorage.setItem(cacheKey, JSON.stringify(result));
+          window.localStorage.setItem(cacheKey, JSON.stringify(result));
         }
       } catch (error) {
         console.warn("[useProgramImage] Standalone enrichment failed:", error);

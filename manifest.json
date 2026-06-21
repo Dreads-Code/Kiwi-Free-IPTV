@@ -1,6 +1,6 @@
 {
   "id": "kiwi-free-iptv",
-  "version": "1.1.0",
+  "version": "1.7.0",
   "name": "Kiwi Free IPTV",
   "description": "Free-to-air New Zealand TV that provides rich metadata, show posters, IMDb ratings, genres, and age classifications. Huge thanks to https://www.matthuisman.nz/",
   "logo": "/logo.png",
@@ -10,16 +10,26 @@
   "resources": [
     {
       "name": "stream",
-      "types": ["tv"],
-      "idPrefixes": ["stremio_iptv_id:"]
+      "types": [
+        "tv"
+      ],
+      "idPrefixes": [
+        "stremio_iptv_id:"
+      ]
     },
     {
       "name": "meta",
-      "types": ["tv"],
-      "idPrefixes": ["stremio_iptv_id:"]
+      "types": [
+        "tv"
+      ],
+      "idPrefixes": [
+        "stremio_iptv_id:"
+      ]
     }
   ],
-  "types": ["tv"],
+  "types": [
+    "tv"
+  ],
   "behaviorHints": {
     "configurable": true,
     "configurationRequired": true

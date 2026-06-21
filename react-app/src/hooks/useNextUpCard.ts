@@ -9,9 +9,7 @@ function computeShowNextUp(programme: Programme | null): boolean {
 }
 
 export function useNextUpCard(currentProgramme: Programme | null) {
-  const [showNextUp, setShowNextUp] = useState(() =>
-    computeShowNextUp(currentProgramme),
-  );
+  const [showNextUp, setShowNextUp] = useState(() => computeShowNextUp(currentProgramme));
 
   // React-approved: setState during render to sync derived state when programme changes
   const [prevProgramme, setPrevProgramme] = useState(currentProgramme);

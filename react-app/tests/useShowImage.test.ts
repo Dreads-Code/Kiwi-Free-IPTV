@@ -12,15 +12,9 @@ vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
     // Upgrade http to https
     let result = url.replace(/^http:\/\//, "https://");
     // Replace cdn.fullscreen.nz dimension placeholders
-    if (
-      result.includes("cdn.fullscreen.nz") &&
-      result.includes("[width]x[height]")
-    ) {
+    if (result.includes("cdn.fullscreen.nz") && result.includes("[width]x[height]")) {
       const isPoster = /\/poster\//i.test(result);
-      result = result.replace(
-        "[width]x[height]",
-        isPoster ? "300x450" : "600x338",
-      );
+      result = result.replace("[width]x[height]", isPoster ? "300x450" : "600x338");
     }
     return result;
   }),
@@ -55,14 +49,12 @@ describe("useProgramImage", () => {
     // Re-stub after vitest.setup.ts afterEach calls vi.unstubAllGlobals()
     vi.stubGlobal("fetch", mockFetch);
     // Clear localStorage to prevent cache pollution between tests
-    localStorage.clear();
+    window.localStorage.clear();
   });
 
   describe("processEpgIconUrl", () => {
     it("should return the EPG icon if it is valid and NOT forced to TVmaze", () => {
-      const { result } = renderHook(() =>
-        useProgramImage(mockProgramme, mockChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(mockProgramme, mockChannel));
       expect(result.current.posterUrl).toBe("https://example.com/icon.jpg");
       expect(result.current.loading).toBe(false);
     });
@@ -72,9 +64,7 @@ describe("useProgramImage", () => {
         ...mockProgramme,
         icon: "http://example.com/icon.jpg",
       };
-      const { result } = renderHook(() =>
-        useProgramImage(progWithHttp, mockChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(progWithHttp, mockChannel));
       expect(result.current.posterUrl).toBe("https://example.com/icon.jpg");
     });
 
@@ -102,42 +92,29 @@ describe("useProgramImage", () => {
           json: () => Promise.resolve([]),
         });
 
-      const { result } = renderHook(() =>
-        useProgramImage(progWithFtp, mockChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(progWithFtp, mockChannel));
 
       expect(result.current.posterUrl).toBeNull();
 
       await waitFor(
         () => {
-          expect(result.current.posterUrl).toBe(
-            "https://tvmaze.com/poster.jpg",
-          );
+          expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
         },
         { timeout: 3000 },
       );
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/fetch?url="),
-      );
+      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/api/fetch?url="));
     });
 
     it("should fix dimensions for cdn.fullscreen.nz URLs", () => {
-      const landscapeUrl =
-        "https://cdn.fullscreen.nz/Spotlight/[width]x[height].jpg";
+      const landscapeUrl = "https://cdn.fullscreen.nz/Spotlight/[width]x[height].jpg";
       const prog = { ...mockProgramme, icon: landscapeUrl };
       const { result } = renderHook(() => useProgramImage(prog, mockChannel));
-      expect(result.current.posterUrl).toBe(
-        "https://cdn.fullscreen.nz/Spotlight/600x338.jpg",
-      );
+      expect(result.current.posterUrl).toBe("https://cdn.fullscreen.nz/Spotlight/600x338.jpg");
 
       const posterUrl = "https://cdn.fullscreen.nz/Poster/[width]x[height].jpg";
       const progPoster = { ...mockProgramme, icon: posterUrl };
-      const { result: result2 } = renderHook(() =>
-        useProgramImage(progPoster, mockChannel),
-      );
-      expect(result2.current.posterUrl).toBe(
-        "https://cdn.fullscreen.nz/Poster/300x450.jpg",
-      );
+      const { result: result2 } = renderHook(() => useProgramImage(progPoster, mockChannel));
+      expect(result2.current.posterUrl).toBe("https://cdn.fullscreen.nz/Poster/300x450.jpg");
     });
   });
 
@@ -171,23 +148,17 @@ describe("useProgramImage", () => {
             ]),
         });
 
-      const { result } = renderHook(() =>
-        useProgramImage(mockProgramme, forcedChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(mockProgramme, forcedChannel));
 
       // wait for debounce and fetch to complete
       await waitFor(
         () => {
-          expect(result.current.posterUrl).toBe(
-            "https://tvmaze.com/poster.jpg",
-          );
+          expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
         },
         { timeout: 3000 },
       );
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/fetch?url="),
-      );
+      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/api/fetch?url="));
       expect(result.current.bannerUrl).toBe("https://tvmaze.com/banner.jpg");
     });
 
@@ -208,17 +179,14 @@ describe("useProgramImage", () => {
           ]),
       });
 
-      const { result, rerender } = renderHook(
-        ({ prog, chan }) => useProgramImage(prog, chan),
-        { initialProps: { prog: mockProgramme, chan: forcedChannel } },
-      );
+      const { result, rerender } = renderHook(({ prog, chan }) => useProgramImage(prog, chan), {
+        initialProps: { prog: mockProgramme, chan: forcedChannel },
+      });
 
       // Wait for the first enrichment to complete
       await waitFor(
         () => {
-          expect(result.current.posterUrl).toBe(
-            "https://tvmaze.com/poster.jpg",
-          );
+          expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
         },
         { timeout: 3000 },
       );
@@ -235,9 +203,7 @@ describe("useProgramImage", () => {
 
       await waitFor(
         () => {
-          expect(result.current.posterUrl).toBe(
-            "https://tvmaze.com/poster.jpg",
-          );
+          expect(result.current.posterUrl).toBe("https://tvmaze.com/poster.jpg");
         },
         { timeout: 3000 },
       );
@@ -251,9 +217,7 @@ describe("useProgramImage", () => {
         statusText: "Not Found",
       });
 
-      const { result } = renderHook(() =>
-        useProgramImage(mockProgramme, forcedChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(mockProgramme, forcedChannel));
 
       await waitFor(
         () => {
@@ -270,9 +234,7 @@ describe("useProgramImage", () => {
       const forcedChannel = { ...mockChannel, id: "mjh-sky-ptmb" };
       mockFetch.mockRejectedValueOnce(new Error("Network Error"));
 
-      const { result } = renderHook(() =>
-        useProgramImage(mockProgramme, forcedChannel),
-      );
+      const { result } = renderHook(() => useProgramImage(mockProgramme, forcedChannel));
 
       await waitFor(
         () => {
@@ -299,10 +261,7 @@ describe("useProgramImage", () => {
       mockFetch.mockRejectedValue(new Error("inner network failure"));
 
       const { result } = renderHook(() =>
-        useProgramImage(
-          { ...mockProgramme, title: "Inner Catch Show" },
-          forcedChannel,
-        ),
+        useProgramImage({ ...mockProgramme, title: "Inner Catch Show" }, forcedChannel),
       );
 
       await waitFor(
@@ -352,21 +311,14 @@ describe("useProgramImage", () => {
 
       // Force localStorage.setItem to throw — this is inside the outer try
       // so the outer catch (line 161) will fire
-      const setItemSpy = vi
-        .spyOn(Storage.prototype, "setItem")
-        .mockImplementation(() => {
-          throw new Error("storage quota exceeded");
-        });
+      const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("storage quota exceeded");
+      });
       // Also mock getItem to return null so the cache check doesn't short-circuit
-      const getItemSpy = vi
-        .spyOn(Storage.prototype, "getItem")
-        .mockReturnValue(null);
+      const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
 
       const { result } = renderHook(() =>
-        useProgramImage(
-          { ...mockProgramme, title: "Outer Catch Show" },
-          forcedChannel,
-        ),
+        useProgramImage({ ...mockProgramme, title: "Outer Catch Show" }, forcedChannel),
       );
 
       await waitFor(

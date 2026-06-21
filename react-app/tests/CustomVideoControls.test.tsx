@@ -37,15 +37,11 @@ describe("CustomVideoControls", () => {
     expect(screen.getByText("Test Programme")).toBeDefined();
     expect(screen.getByRole("button", { name: "Play" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Mute" })).toBeDefined();
-    expect(
-      screen.getByRole("button", { name: "Enter fullscreen" }),
-    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Enter fullscreen" })).toBeDefined();
   });
 
   it("should correctly toggle play/pause icon", () => {
-    const { rerender } = render(
-      <CustomVideoControls {...defaultProps} isPlaying={true} />,
-    );
+    const { rerender } = render(<CustomVideoControls {...defaultProps} isPlaying={true} />);
     expect(screen.getByRole("button", { name: "Pause" })).toBeDefined();
 
     rerender(<CustomVideoControls {...defaultProps} isPlaying={false} />);
@@ -66,11 +62,7 @@ describe("CustomVideoControls", () => {
 
   it("should show seek bar progress correctly", () => {
     const { container } = render(
-      <CustomVideoControls
-        {...defaultProps}
-        currentTime={500}
-        duration={1000}
-      />,
+      <CustomVideoControls {...defaultProps} currentTime={500} duration={1000} />,
     );
     const slider = container.querySelector('input[type="range"]');
     expect(slider).toBeDefined();

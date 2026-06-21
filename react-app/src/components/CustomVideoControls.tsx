@@ -114,9 +114,7 @@ const SettingsMenu: React.FC<{
   onQualityChange,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<"main" | "subtitles" | "quality">(
-    "main",
-  );
+  const [activeTab, setActiveTab] = useState<"main" | "subtitles" | "quality">("main");
 
   const subtitleLookup = React.useMemo(() => {
     const map = new Map<number, string>();
@@ -294,10 +292,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        settingsRef.current &&
-        !settingsRef.current.contains(event.target as Node)
-      ) {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
         setShowSettings(false);
       }
     };
@@ -341,9 +336,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
               onSeek(Number(e.target.value));
             }}
             className="range-slider h-1.5 w-full cursor-pointer appearance-none rounded-full transition-all group-hover:h-2"
-            style={
-              { "--progress": `${progress.toString()}%` } as React.CSSProperties
-            }
+            style={{ "--progress": `${progress.toString()}%` } as React.CSSProperties}
           />
         </div>
 
@@ -358,11 +351,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
               {isPlaying ? (
                 <Pause size={20} fill="currentColor" className="text-white" />
               ) : (
-                <Play
-                  size={20}
-                  fill="currentColor"
-                  className="ml-0.5 text-white"
-                />
+                <Play size={20} fill="currentColor" className="ml-0.5 text-white" />
               )}
             </button>
             <VolumeControl
@@ -377,10 +366,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
             </div>
           </div>
 
-          <div
-            className="relative flex items-center gap-1 md:gap-3"
-            ref={settingsRef}
-          >
+          <div className="relative flex items-center gap-1 md:gap-3" ref={settingsRef}>
             {/* Settings Button */}
             {(subtitleTracks.length > 0 || qualities.length > 0) && (
               <button
@@ -390,10 +376,7 @@ const CustomVideoControls: React.FC<CustomControlsProps> = ({
                 className={`flex h-10 w-10 items-center justify-center rounded-full transition-all hover:bg-white/10 ${showSettings ? "scale-110 bg-white/20" : ""}`}
                 title="Settings"
               >
-                <Settings
-                  size={20}
-                  className={showSettings ? "rotate-45" : ""}
-                />
+                <Settings size={20} className={showSettings ? "rotate-45" : ""} />
               </button>
             )}
 
