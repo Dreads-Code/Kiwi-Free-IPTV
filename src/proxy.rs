@@ -179,7 +179,7 @@ pub async fn proxy_path_handler(
                 .status(StatusCode::BAD_REQUEST)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid base64 encoding"))
-                .expect("Failed to build error response for invalid base64");
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
     };
 
@@ -190,7 +190,7 @@ pub async fn proxy_path_handler(
                 .status(StatusCode::BAD_REQUEST)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid JSON payload"))
-                .expect("Failed to build error response for invalid JSON");
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
     };
 
@@ -222,7 +222,7 @@ pub async fn proxy_path_handler(
             .header("Location", &data.url)
             .header("Access-Control-Allow-Origin", "*")
             .body(Body::empty())
-            .expect("Failed to build redirect response");
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
     if cfg!(debug_assertions) {
@@ -333,7 +333,7 @@ pub async fn do_proxy(
             .status(StatusCode::FORBIDDEN)
             .header("access-control-allow-origin", "*")
             .body(Body::from("Access denied: Unsafe or unauthorized URL"))
-            .expect("Failed to build access denied response");
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
     // Only trust forwarding headers if we are running behind a known trusted proxy.
@@ -557,7 +557,7 @@ pub async fn do_proxy(
                 let mut response = Response::builder()
                     .status(status)
                     .body(Body::empty())
-                    .expect("Failed to build HEAD response");
+                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
                 *response.headers_mut() = response_headers;
                 return response;
             }
@@ -573,7 +573,7 @@ pub async fn do_proxy(
                     let mut response = Response::builder()
                         .status(status)
                         .body(Body::from(rewritten_text))
-                        .expect("Failed to build M3U8 response");
+                        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
                     *response.headers_mut() = response_headers;
                     return response;
                 }
@@ -585,7 +585,7 @@ pub async fn do_proxy(
                 let mut response = Response::builder()
                     .status(status)
                     .body(body)
-                    .expect("Failed to build stream response");
+                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
                 *response.headers_mut() = response_headers;
                 return response;
             }
@@ -593,7 +593,7 @@ pub async fn do_proxy(
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Body::from("Failed to process stream"))
-                .expect("Failed to build internal error response")
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
         }
         Err(e) => {
             error!("Network error in proxy: {}", e);
@@ -601,7 +601,7 @@ pub async fn do_proxy(
                 .status(StatusCode::BAD_GATEWAY)
                 .header("access-control-allow-origin", "*")
                 .body(Body::from("Upstream error"))
-                .expect("Failed to build upstream error response")
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
         }
     }
 }
