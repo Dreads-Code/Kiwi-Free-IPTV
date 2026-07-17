@@ -11,13 +11,17 @@ A high-performance, unified solution for streaming free-to-air New Zealand TV. T
 We provide a consistent and lightning-fast experience for streaming free-to-air New Zealand TV through either a Web Player or a Stremio addon.
 
 ### 1. 📺 Stremio Addon
+
 A native Stremio integration that provides rich metadata, landscape posters, and reliable streaming to any Stremio-capable device.
+
 - **Rich EPG**: Instant updates for currently airing programs on the Discover pane.
 - **Smart Sorting**: Channels ordered to match the official NZ Freeview layout.
 - **Enhanced Metadata**: IMDb ratings, genres, and age classifications.
 
 ### 2. 📱 TV Web Application
+
 A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
+
 - **Premium UI**: Dark-mode focused, glassmorphic design with smooth micro-animations.
 - **Integrated Player**: Custom HLS player with adaptive quality and picture-in-picture.
 - **Zero Bloat**: Consumed pre-processed data from the Rust backend, eliminating browser-side XML parsing.
@@ -28,11 +32,17 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 
 > [!IMPORTANT]
 > The following channels are **region-locked** and will only function if your IP address is within **New Zealand**:
+>
 > - **Three**
 > - **Bravo**
 > - **The Edge TV**
-> 
+>
 > If you are outside of New Zealand, a **VPN** connected to a New Zealand server is required to stream these channels.
+>
+> ---
+>
+> 🔒 **TVNZ Channels (TVNZ 1, 2, Duke)**
+> TVNZ has transitioned their live streams to Widevine DRM encryption hosted on a strictly CORS-locked CDN. Because of these restrictions, TVNZ streams **cannot be played directly in third-party web browsers or Stremio**, and are consequently absent from this app.
 
 ---
 
@@ -49,19 +59,21 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 ## 💻 Development
 
 ### Prerequisites
+
 - **Rust**: [Install Rust](https://www.rust-lang.org/tools/install)
 - **Node.js**: [Install Node.js](https://nodejs.org/) (version >= 24)
 
 ### Root Commands
+
 You can manage the entire project (backend and frontend) from the root directory:
 
-| Command | Action |
-| :--- | :--- |
-| `npm run dev` | Starts both the Rust backend and React frontend concurrently. |
+| Command         | Action                                                                       |
+| :-------------- | :--------------------------------------------------------------------------- |
+| `npm run dev`   | Starts both the Rust backend and React frontend concurrently.                |
 | `npm run build` | Builds the WASM engine, the backend binary, and the React production bundle. |
-| `npm run lint` | Runs `cargo clippy` and `oxlint` (type-aware) for both codebases. |
-| `npm run fmt` | Formats both Rust and React code using `cargo fmt` and `oxfmt`. |
-| `npm run test` | Runs tests for both the Rust backend and React frontend. |
+| `npm run lint`  | Runs `cargo clippy` and `oxlint` (type-aware) for both codebases.            |
+| `npm run fmt`   | Formats both Rust and React code using `cargo fmt` and `oxfmt`.              |
+| `npm run test`  | Runs tests for both the Rust backend and React frontend.                     |
 
 ---
 

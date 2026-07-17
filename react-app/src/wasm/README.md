@@ -33,6 +33,11 @@ A sleek, modern web interface optimized for both desktop and mobile/PWA usage.
 > - **The Edge TV**
 > 
 > If you are outside of New Zealand, a **VPN** connected to a New Zealand server is required to stream these channels.
+>
+> ---
+>
+> 🔒 **TVNZ Channels (TVNZ 1, 2, Duke)**
+> TVNZ has transitioned their live streams to Widevine DRM encryption hosted on a strictly CORS-locked CDN. Because of these restrictions, TVNZ streams **cannot be played directly in third-party web browsers or Stremio**, and are consequently absent from this app.
 
 ---
 

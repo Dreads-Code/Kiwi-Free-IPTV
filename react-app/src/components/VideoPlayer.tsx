@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { X, AlertTriangle, Tv, RefreshCw } from "lucide-react";
+import { X, AlertTriangle, RefreshCw } from "lucide-react";
 
 import { Channel, EpgData } from "../types";
 import CustomVideoControls from "./CustomVideoControls";
@@ -46,30 +46,10 @@ const VideoPlayer = ({ streamUrl, onClose, channel, epg }: VideoPlayerProps) => 
     };
   }, [streamUrl, channel.headers]);
 
-  const isTvnz2 = useMemo(() => {
-    return (
-      channel.name.toLowerCase().includes("tvnz 2") ||
-      channel.name.toLowerCase().replaceAll(" ", "") === "tvnz2"
-    );
-  }, [channel.name]);
-
   // Loading and buffering timeout effect to explain errors gracefully
   useEffect(() => {
     if (isPlaying) {
       return;
-    }
-
-    if (isTvnz2) {
-      // For TVNZ 2, we know it's a permanent DRM migration, so show message after a brief loading state
-      const timer = setTimeout(() => {
-        setLoadError(
-          "TVNZ 2 has transitioned to encrypted DRM (Widevine) streams. Unencrypted public feeds are currently unavailable. We are actively monitoring for new public mirror streams.",
-        );
-        setIsBuffering(false);
-      }, 5000);
-      return () => {
-        clearTimeout(timer);
-      };
     }
 
     // General timeout for other channels
@@ -83,7 +63,7 @@ const VideoPlayer = ({ streamUrl, onClose, channel, epg }: VideoPlayerProps) => 
     return () => {
       clearTimeout(timer);
     };
-  }, [isPlaying, isBuffering, resolvedUrl, isTvnz2]);
+  }, [isPlaying, isBuffering, resolvedUrl]);
 
   const {
     subtitleTracks,
@@ -323,15 +303,9 @@ const VideoPlayer = ({ streamUrl, onClose, channel, epg }: VideoPlayerProps) => 
         <div className="animate-fade-in absolute inset-0 z-30 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
           <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl">
             <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-red-500/20 bg-red-500/10 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
-              {isTvnz2 ? (
-                <Tv size={28} className="animate-pulse" />
-              ) : (
-                <AlertTriangle size={28} className="animate-pulse" />
-              )}
+              <AlertTriangle size={28} className="animate-pulse" />
             </div>
-            <h3 className="mb-2 text-xl font-bold tracking-wide text-white">
-              {isTvnz2 ? "DRM Encrypted Channel" : "Playback Error"}
-            </h3>
+            <h3 className="mb-2 text-xl font-bold tracking-wide text-white">Playback Error</h3>
             <p className="mb-6 text-sm leading-relaxed text-white/70">{activeError}</p>
             <div className="flex w-full gap-3">
               <button
@@ -343,18 +317,16 @@ const VideoPlayer = ({ streamUrl, onClose, channel, epg }: VideoPlayerProps) => 
               >
                 Close Channel
               </button>
-              {!isTvnz2 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRetry();
-                  }}
-                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-black shadow-lg shadow-white/5 transition-all hover:bg-white/90 active:scale-95"
-                >
-                  <RefreshCw size={14} />
-                  Retry
-                </button>
-              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRetry();
+                }}
+                className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-black shadow-lg shadow-white/5 transition-all hover:bg-white/90 active:scale-95"
+              >
+                <RefreshCw size={14} />
+                Retry
+              </button>
             </div>
           </div>
         </div>
