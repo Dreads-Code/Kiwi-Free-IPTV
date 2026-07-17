@@ -206,9 +206,7 @@ async fn manifest_handler(headers: HeaderMap) -> impl IntoResponse {
     let mut response_headers = HeaderMap::new();
     response_headers.insert(
         "Cache-Control",
-        "max-age=86400, public"
-            .parse()
-            .expect("Invalid Cache-Control header value"),
+        axum::http::HeaderValue::from_static("max-age=86400, public"),
     );
 
     (response_headers, Json(manifest))
@@ -240,9 +238,9 @@ async fn data_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut response_headers = HeaderMap::new();
     response_headers.insert(
         "Cache-Control",
-        "s-maxage=60, stale-while-revalidate=30, max-age=0, public"
-            .parse()
-            .expect("Invalid Cache-Control header value"),
+        axum::http::HeaderValue::from_static(
+            "s-maxage=60, stale-while-revalidate=30, max-age=0, public",
+        ),
     );
 
     match iptv::fetch_data(&state).await {
@@ -277,17 +275,6 @@ async fn fetch_pass_through_handler(
         Ok(res) => {
             let status = res.status();
             let mut headers = HeaderMap::new();
-            // Critical: Add CORS headers so the browser can read the response
-            headers.insert(
-                "Access-Control-Allow-Origin",
-                "*".parse().expect("Invalid CORS header value"),
-            );
-            headers.insert(
-                "Access-Control-Allow-Methods",
-                "GET, OPTIONS"
-                    .parse()
-                    .expect("Invalid CORS methods header value"),
-            );
 
             if let Some(ct) = res.headers().get("content-type") {
                 headers.insert("Content-Type", ct.clone());
@@ -339,9 +326,9 @@ async fn resource_handler(
     let mut response_headers = HeaderMap::new();
     response_headers.insert(
         "Cache-Control",
-        "s-maxage=60, stale-while-revalidate=30, max-age=0, public"
-            .parse()
-            .expect("Invalid Cache-Control header value"),
+        axum::http::HeaderValue::from_static(
+            "s-maxage=60, stale-while-revalidate=30, max-age=0, public",
+        ),
     );
 
     if type_name != "tv" {

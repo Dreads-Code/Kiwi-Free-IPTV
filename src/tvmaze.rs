@@ -185,23 +185,44 @@ impl TvMazeClient {
     }
 }
 
+static RE_YEAR: std::sync::OnceLock<Option<regex::Regex>> = std::sync::OnceLock::new();
+static RE_STATE: std::sync::OnceLock<Option<regex::Regex>> = std::sync::OnceLock::new();
+static RE_SEASON: std::sync::OnceLock<Option<regex::Regex>> = std::sync::OnceLock::new();
+
+fn re_year() -> Option<&'static regex::Regex> {
+    RE_YEAR
+        .get_or_init(|| regex::Regex::new(r"\s{0,5}\(\d{4}\)$").ok())
+        .as_ref()
+}
+
+fn re_state() -> Option<&'static regex::Regex> {
+    RE_STATE
+        .get_or_init(|| regex::Regex::new(r"(?i)\s{0,5}\((?:Premiere|New|Final|Repeat)\)$").ok())
+        .as_ref()
+}
+
+fn re_season() -> Option<&'static regex::Regex> {
+    RE_SEASON
+        .get_or_init(|| regex::Regex::new(r"(?i)\s*-\s*s\d+e\d+.*$").ok())
+        .as_ref()
+}
+
 /// Cleans a program title by removing years, tags like (Premiere), and extra whitespace.
 pub fn clean_title_for_search(title: &str) -> String {
     let mut cleaned = title.trim().to_string();
     let mut last_cleaned;
 
-    let regex_year =
-        regex::Regex::new(r"\s{0,5}\(\d{4}\)$").expect("Invalid regex for year removal");
-    let regex_state = regex::Regex::new(r"(?i)\s{0,5}\((?:Premiere|New|Final|Repeat)\)$")
-        .expect("Invalid regex for state removal");
-    let regex_season =
-        regex::Regex::new(r"(?i)\s*-\s*s\d+e\d+.*$").expect("Invalid regex for season removal");
-
     loop {
         last_cleaned = cleaned.clone();
-        cleaned = regex_year.replace(&cleaned, "").to_string();
-        cleaned = regex_state.replace(&cleaned, "").to_string();
-        cleaned = regex_season.replace(&cleaned, "").to_string();
+        if let Some(re) = re_year() {
+            cleaned = re.replace(&cleaned, "").to_string();
+        }
+        if let Some(re) = re_state() {
+            cleaned = re.replace(&cleaned, "").to_string();
+        }
+        if let Some(re) = re_season() {
+            cleaned = re.replace(&cleaned, "").to_string();
+        }
         cleaned = cleaned.trim().to_string();
         if cleaned == last_cleaned {
             break;
