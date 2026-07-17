@@ -147,3 +147,14 @@ fn test_tvmaze_client_with_base_url() {
     let client = TvMazeClient::with_base_url("https://test.tvmaze.com".to_string());
     assert_eq!(client.base_url(), "https://test.tvmaze.com");
 }
+
+#[test]
+fn test_clean_title_for_search_edge_cases() {
+    assert_eq!(clean_title_for_search(""), "");
+    assert_eq!(clean_title_for_search("   "), "");
+    assert_eq!(clean_title_for_search("(!!!)"), "(!!!)");
+    assert_eq!(
+        clean_title_for_search("Show Name - S01E02 (2023) (Repeat)"),
+        "Show Name"
+    );
+}

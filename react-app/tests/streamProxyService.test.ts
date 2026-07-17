@@ -51,6 +51,13 @@ describe("streamProxyService", () => {
     it("should return false for unlisted domains", () => {
       expect(isAllowedUrl("https://example.com/video.m3u8", mockCheck)).toBe(false);
     });
+
+    it("should return false for empty string", () => {
+      const spy = vi.fn((_u) => false);
+      const result = isAllowedUrl("", spy);
+      expect(spy).toHaveBeenCalledWith("");
+      expect(result).toBe(false);
+    });
   });
 
   describe("applyProxyRules", () => {
@@ -79,15 +86,13 @@ describe("streamProxyService", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("should fall back to the original URL when btoa throws (non-latin1 characters)", () => {
+    it("should fall back to original URL when btoa throws (headers with non-Latin-1 chars)", () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
         /* no-op */
       });
 
-      // Valid URL but contains characters that btoa might struggle with depending on environment
-      // "🚀" is U+1F680, which is definitely outside the 0-255 range.
-      const url = "https://example.com/🚀";
-      const result = applyProxyRules(url);
+      const url = "https://example.com/a.m3u8";
+      const result = applyProxyRules(url, { "x-test": "日本語" });
 
       expect(result).toBe(url);
       expect(consoleErrorSpy).toHaveBeenCalled();

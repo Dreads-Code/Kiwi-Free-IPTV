@@ -618,3 +618,28 @@ async fn test_proxy_ip_spoof_protection() {
     assert!(res.status().is_success());
     m.assert_async().await;
 }
+
+#[test]
+fn test_is_safe_url_invalid() {
+    assert!(!proxy::is_safe_url("not a url"));
+    assert!(!proxy::is_safe_url(""));
+}
+
+#[test]
+fn test_rewrite_m3u8_unparseable_url() {
+    let m3u8_text = "#EXTM3U\n#EXTINF:-1,Test\nhttp://example.com/stream.ts";
+    let result = proxy::rewrite_m3u8(m3u8_text, "http://127.0.0.1:7000", "not a url", None);
+    assert_eq!(result, m3u8_text);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn test_get_base_url_invalid_host() {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::HOST,
+        axum::http::HeaderValue::from_bytes(&[0xFF, 0xFE]).unwrap(),
+    );
+    let result = get_base_url(&headers);
+    assert_eq!(result, "http://127.0.0.1:7000");
+}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchAllData } from "../src/services/tvService";
+import { epgCache } from "../src/utils/indexedDb";
 
 // Mock WASM module — parse_nz_channels returns RustChannelMeta[]
 vi.mock("../src/wasm/iptv_nz_addon_rust.js", () => ({
@@ -164,6 +165,32 @@ describe("tvService", () => {
       const result = await fetchAllData();
       // Should handle the error via isNaN checks and return null, resulting in the programme being filtered out
       expect(result.epg.get("test-channel-1")).toHaveLength(0);
+    });
+  });
+
+  describe("fetchAllData upstream failures", () => {
+    it("should reject when both M3U8 and EPG requests fail", async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      vi.mocked(epgCache.get).mockResolvedValueOnce(null);
+      vi.mocked(fetch).mockResolvedValue({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      await expect(fetchAllData()).rejects.toThrow(
+        "Failed to fetch data from source: M3U8=500, EPG=500",
+      );
+    });
+
+    it("should reject when M3U8 fails but EPG is cached", async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      vi.mocked(epgCache.get).mockResolvedValueOnce("cached string");
+      vi.mocked(fetch).mockResolvedValue({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      await expect(fetchAllData()).rejects.toThrow("Failed to fetch M3U8: 500");
     });
   });
 });
