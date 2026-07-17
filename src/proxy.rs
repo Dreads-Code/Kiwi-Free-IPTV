@@ -177,7 +177,6 @@ pub async fn proxy_path_handler(
         Err(_) => {
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid base64 encoding"))
                 .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
@@ -188,7 +187,6 @@ pub async fn proxy_path_handler(
         Err(_) => {
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .header("access-control-allow-origin", "*")
                 .body(Body::from("Invalid JSON payload"))
                 .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
@@ -220,7 +218,6 @@ pub async fn proxy_path_handler(
         return Response::builder()
             .status(StatusCode::FOUND)
             .header("Location", &data.url)
-            .header("Access-Control-Allow-Origin", "*")
             .body(Body::empty())
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
@@ -331,7 +328,6 @@ pub async fn do_proxy(
         warn!("Blocked unsafe proxy target: {}", target_url);
         return Response::builder()
             .status(StatusCode::FORBIDDEN)
-            .header("access-control-allow-origin", "*")
             .body(Body::from("Access denied: Unsafe or unauthorized URL"))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
@@ -503,16 +499,6 @@ pub async fn do_proxy(
             }
 
             let mut response_headers = HeaderMap::new();
-
-            response_headers.insert("access-control-allow-origin", HeaderValue::from_static("*"));
-            response_headers.insert(
-                "access-control-allow-methods",
-                HeaderValue::from_static("GET, HEAD, OPTIONS"),
-            );
-            response_headers.insert(
-                "access-control-allow-headers",
-                HeaderValue::from_static("*"),
-            );
             response_headers.insert(
                 "access-control-expose-headers",
                 HeaderValue::from_static(
@@ -599,7 +585,6 @@ pub async fn do_proxy(
             error!("Network error in proxy: {}", e);
             Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
-                .header("access-control-allow-origin", "*")
                 .body(Body::from("Upstream error"))
                 .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
         }
